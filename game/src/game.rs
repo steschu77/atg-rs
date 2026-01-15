@@ -46,7 +46,9 @@ impl Game {
         // Process input events, e.g., keyboard, mouse, etc.
         for event in events {
             match event {
-                input::Event::KeyUp { key: 27 } => {
+                input::Event::KeyUp {
+                    key: input::Key::Exit,
+                } => {
                     return Err(Error::GameOver);
                 }
                 input::Event::ButtonUp { button: 3 } => {

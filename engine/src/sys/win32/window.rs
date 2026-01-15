@@ -40,7 +40,7 @@ impl<T: IWindow> WindowProc<T> {
         title: &str,
         class_name: &str,
         style: WINDOW_STYLE,
-        params: &T::Params,
+        params: T::Params,
     ) -> Result<HWND> {
         let title = title.encode_utf16().chain(Some(0)).collect::<Vec<_>>();
         let class_name = class_name.encode_utf16().chain(Some(0)).collect::<Vec<_>>();

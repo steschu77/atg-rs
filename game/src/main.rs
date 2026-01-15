@@ -1,16 +1,33 @@
 mod game;
 mod gameplay;
 
+// ----------------------------------------------------------------------------
+#[cfg(target_os = "windows")]
+pub fn main() {
+    if let Err(e) = win32::main() {
+        eprintln!("Error: {e:?}");
+    }
+}
+
+// ----------------------------------------------------------------------------
+#[cfg(target_os = "linux")]
+pub fn main() {
+    if let Err(e) = linux::main() {
+        eprintln!("Error: {e:?}");
+    }
+}
+
 #[cfg(target_os = "windows")]
 mod win32 {
     use engine::core::clock::Clock;
     use engine::core::game_loop::GameLoop;
     use engine::core::input;
+    use engine::core::input::Key;
     use engine::error::{Error, Result};
     use engine::sys::win32::Win32GLContext;
     use windows::Win32::UI::Input::{
-        GetRawInputData, HRAWINPUT, RAWINPUT, RAWINPUTHEADER, RID_INPUT, RIM_TYPEKEYBOARD,
-        RIM_TYPEMOUSE,
+        GetRawInputData, HRAWINPUT, KeyboardAndMouse, RAWINPUT, RAWINPUTHEADER, RID_INPUT,
+        RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
     };
     use windows::Win32::{
         Foundation::*,
@@ -18,6 +35,7 @@ mod win32 {
         UI::WindowsAndMessaging::*,
     };
 
+    // ----------------------------------------------------------------------------
     struct GameWindowParams {}
 
     struct GameWindow {
@@ -93,10 +111,12 @@ mod win32 {
         }
 
         fn on_key_event(&mut self, msg: u32, key: u32) -> LRESULT {
-            match msg {
-                WM_KEYDOWN => self.input.add_event(input::Event::KeyDown { key }),
-                WM_KEYUP => self.input.add_event(input::Event::KeyUp { key }),
-                _ => {}
+            if let Some(key) = vk_to_key(key) {
+                match msg {
+                    WM_KEYDOWN => self.input.add_event(input::Event::KeyDown { key }),
+                    WM_KEYUP => self.input.add_event(input::Event::KeyUp { key }),
+                    _ => {}
+                }
             }
             LRESULT(0)
         }
@@ -158,15 +178,16 @@ mod win32 {
                 }
                 if raw.header.dwType == RIM_TYPEKEYBOARD.0 {
                     let kb = raw.data.keyboard;
-                    let vk = kb.VKey as usize;
-                    match kb.Message {
-                        WM_KEYDOWN | WM_SYSKEYDOWN => {
-                            self.input.set_state(vk, 0x80);
+                    if let Some(key) = vk_to_key(kb.VKey as u32) {
+                        match kb.Message {
+                            WM_KEYDOWN | WM_SYSKEYDOWN => {
+                                self.input.set_state(key, 0x80);
+                            }
+                            WM_KEYUP | WM_SYSKEYUP => {
+                                self.input.set_state(key, 0x00);
+                            }
+                            _ => {}
                         }
-                        WM_KEYUP | WM_SYSKEYUP => {
-                            self.input.set_state(vk, 0x00);
-                        }
-                        _ => {}
                     }
                 }
             }
@@ -174,73 +195,141 @@ mod win32 {
         }
     }
 
-    pub fn main() {
+    // ------------------------------------------------------------------------
+    fn vk_to_key(vk: u32) -> Option<Key> {
+        const VK_ESCAPE: u32 = KeyboardAndMouse::VK_ESCAPE.0 as u32;
+        const VK_LEFT: u32 = KeyboardAndMouse::VK_LEFT.0 as u32;
+        const VK_RIGHT: u32 = KeyboardAndMouse::VK_RIGHT.0 as u32;
+        const VK_UP: u32 = KeyboardAndMouse::VK_UP.0 as u32;
+        const VK_DOWN: u32 = KeyboardAndMouse::VK_DOWN.0 as u32;
+        const VK_W: u32 = KeyboardAndMouse::VK_W.0 as u32;
+        const VK_A: u32 = KeyboardAndMouse::VK_A.0 as u32;
+        const VK_S: u32 = KeyboardAndMouse::VK_S.0 as u32;
+        const VK_D: u32 = KeyboardAndMouse::VK_D.0 as u32;
+
+        match vk {
+            VK_ESCAPE => Some(Key::Exit),
+            VK_LEFT => Some(Key::LookLeft),
+            VK_RIGHT => Some(Key::LookRight),
+            VK_UP => Some(Key::LookUp),
+            VK_DOWN => Some(Key::LookDown),
+            VK_W => Some(Key::MoveForward),
+            VK_S => Some(Key::MoveBackward),
+            VK_A => Some(Key::StrafeLeft),
+            VK_D => Some(Key::StrafeRight),
+
+            _ => None,
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn main() -> Result<()> {
         let hwnd = engine::sys::win32::window::WindowProc::<GameWindow>::create(
             "Game",
             "GameWindow",
             WS_POPUP | WS_VISIBLE,
-            &GameWindowParams {},
+            GameWindowParams {},
         );
 
         if let Ok(hwnd) = hwnd {
             engine::sys::win32::window::run_message_loop(hwnd);
         }
+
+        Ok(())
     }
 }
 
 #[cfg(target_os = "linux")]
 mod linux {
-    use fantasia::core::clock::Clock;
-    use fantasia::core::game_loop::GameLoop;
-    use fantasia::sys::linux::LinuxGLContext;
+    use engine::core::clock::Clock;
+    use engine::core::game_loop::GameLoop;
+    use engine::core::input;
+    use engine::core::input::Key;
+    use engine::error::{Error, Result};
+    use engine::sys::linux::LinuxGLContext;
+    use std::ptr::NonNull;
+    use x11::xlib::{
+        XCloseDisplay, XCreateSimpleWindow, XDefaultScreen, XDestroyWindow, XDisplayHeight,
+        XDisplayWidth, XEvent, XLookupKeysym, XMapWindow, XNextEvent, XOpenDisplay, XPending,
+        XRaiseWindow, XRootWindow, XSelectInput,
+    };
 
-    pub fn main() {
-        let display = unsafe { x11::xlib::XOpenDisplay(std::ptr::null()) };
-        let screen = unsafe { x11::xlib::XDefaultScreen(display) };
-        let root = unsafe { x11::xlib::XRootWindow(display, screen) };
+    pub fn main() -> Result<()> {
+        let display = unsafe { XOpenDisplay(std::ptr::null()) };
+        let display = NonNull::new(display).ok_or(Error::InvalidDisplay)?;
+            
+        let screen = unsafe { XDefaultScreen(display.as_ptr()) };
+        let root = unsafe { XRootWindow(display.as_ptr(), screen) };
 
-        let win = unsafe { x11::xlib::XCreateSimpleWindow(display, root, 0, 0, 800, 600, 0, 0, 0) };
+        let cx = unsafe { XDisplayWidth(display.as_ptr(), screen) as u32 };
+        let cy = unsafe { XDisplayHeight(display.as_ptr(), screen) as u32 };
+        let win = unsafe { XCreateSimpleWindow(display.as_ptr(), root, 0, 0, cx, cy, 0, 0, 0) };
 
         unsafe {
-            x11::xlib::XSelectInput(
-                display,
+            XSelectInput(
+                display.as_ptr(),
                 win,
                 x11::xlib::ExposureMask | x11::xlib::KeyPressMask,
             );
-            x11::xlib::XMapWindow(display, win);
+            XMapWindow(display.as_ptr(), win);
+            XRaiseWindow(display.as_ptr(), win);
         }
 
-        let context = unsafe { LinuxGLContext::from_window(display, screen, win).unwrap() };
-        let gl = context.load().unwrap();
+        let context = LinuxGLContext::from_window(display, screen, win)?;
+        let gl = context.load()?;
         let clock = Clock::new();
 
         let t_update = std::time::Duration::from_millis(10);
         let mut game_loop = GameLoop::new(t_update);
-        let mut game = super::game::Game::new(gl, t_update);
+        let mut game = super::game::Game::new(gl, t_update)?;
+        let mut input = input::Input::new();
+        
+        game.resize(cx as i32, cy as i32);
 
         loop {
-            unsafe {
-                let mut event: x11::xlib::XEvent = std::mem::zeroed();
-                x11::xlib::XNextEvent(display, &mut event);
-                match event.type_ {
-                    x11::xlib::Expose => {
-                        game_loop.step(&mut game, &clock).unwrap();
-                        context.swap_buffers();
+            while unsafe { XPending(display.as_ptr()) } > 0 {
+                let mut event: XEvent = unsafe { std::mem::zeroed() };
+                unsafe { XNextEvent(display.as_ptr(), &mut event) };
+
+                match unsafe { event.type_ } {
+                    x11::xlib::Expose => {}
+                    x11::xlib::KeyPress => {
+                        let keysym = unsafe { XLookupKeysym(&mut event.key as *mut _, 0) };
+                        if let Some(key) = xkey_to_key(keysym as u32) {
+                            input.add_event(input::Event::KeyDown { key });
+                        }
                     }
-                    x11::xlib::KeyPress => break,
-                    _ => (),
+                    _ => {}
                 }
             }
+
+            if let Err(e) = game_loop.step(&mut game, &clock, &mut input) {
+                eprintln!("Game loop exited with: {e:?}");
+                unsafe {
+                    XDestroyWindow(display.as_ptr(), win);
+                    XCloseDisplay(display.as_ptr());
+                }
+                return Ok(());
+            }
+
+            context.swap_buffers();
         }
     }
-}
 
-#[cfg(target_os = "windows")]
-pub fn main() {
-    win32::main();
-}
-
-#[cfg(target_os = "linux")]
-pub fn main() {
-    linux::main();
+    #[allow(non_upper_case_globals)]
+    fn xkey_to_key(keysym: u32) -> Option<Key> {
+        use x11::keysym::{XK_A, XK_D, XK_Down, XK_Escape, XK_Left, XK_Right, XK_S, XK_Up, XK_W};
+        match keysym {
+            XK_Escape => Some(Key::Exit),
+            XK_Left => Some(Key::LookLeft),
+            XK_Right => Some(Key::LookRight),
+            XK_Up => Some(Key::LookUp),
+            XK_Down => Some(Key::LookDown),
+            XK_W => Some(Key::MoveForward),
+            XK_S => Some(Key::MoveBackward),
+            XK_A => Some(Key::StrafeLeft),
+            XK_D => Some(Key::StrafeRight),
+            _ => None,
+        }
+    }
 }

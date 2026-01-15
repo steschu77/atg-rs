@@ -1,31 +1,25 @@
 // ----------------------------------------------------------------------------
+pub enum Key {
+    Exit = 0,
+    LookLeft = 1,
+    LookRight = 2,
+    LookUp = 3,
+    LookDown = 4,
+    MoveForward = 5,
+    MoveBackward = 6,
+    StrafeLeft = 7,
+    StrafeRight = 8,
+}
+
+// ----------------------------------------------------------------------------
 pub enum Event {
     MouseMove { x: i32, y: i32 },
     ButtonDown { button: u32 },
     ButtonUp { button: u32 },
     Wheel { delta: i32 },
-    KeyDown { key: u32 },
-    KeyUp { key: u32 },
+    KeyDown { key: Key },
+    KeyUp { key: Key },
 }
-
-// ----------------------------------------------------------------------------
-pub enum Key {
-    MoveForward = 0,
-    MoveBackward = 1,
-    StrafeLeft = 2,
-    StrafeRight = 3,
-}
-
-// ----------------------------------------------------------------------------
-use windows::Win32::UI::Input::KeyboardAndMouse;
-
-const VK_W: usize = KeyboardAndMouse::VK_W.0 as usize;
-const VK_A: usize = KeyboardAndMouse::VK_A.0 as usize;
-const VK_S: usize = KeyboardAndMouse::VK_S.0 as usize;
-const VK_D: usize = KeyboardAndMouse::VK_D.0 as usize;
-
-// ----------------------------------------------------------------------------
-const KEY_MAP: [usize; 4] = [VK_W, VK_S, VK_A, VK_D];
 
 // ----------------------------------------------------------------------------
 pub struct Input {
@@ -56,13 +50,16 @@ impl Input {
     }
 
     pub fn is_pressed(&self, key: Key) -> bool {
-        KEY_MAP
-            .get(key as usize)
-            .map(|v| self.states[*v] != 0)
-            .unwrap_or(false)
+        let key = key as usize;
+        if let Some(&s) = self.states.get(key) {
+            s != 0
+        } else {
+            false
+        }
     }
 
-    pub fn set_state(&mut self, key: usize, state: u8) {
+    pub fn set_state(&mut self, key: Key, state: u8) {
+        let key = key as usize;
         if let Some(s) = self.states.get_mut(key) {
             *s = state;
         }
