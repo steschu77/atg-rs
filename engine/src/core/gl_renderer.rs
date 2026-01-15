@@ -3,11 +3,11 @@ use crate::core::gl_graphics::{
 };
 use crate::core::gl_pipeline::{GlBindings, v_pos_norm::Vertex};
 use crate::core::world::World;
-use crate::core::{IRenderer, camera, gl_pipeline};
+use crate::core::{IRenderer, gl_pipeline};
 use crate::error::Result;
 use crate::sys::opengl as gl;
 use crate::v2d::affine4x4;
-use crate::v2d::{m4x4::M4x4, v3::V3, v4::V4};
+use crate::v2d::{m4x4::M4x4, v3::V3};
 use std::rc::Rc;
 
 const VS_TEXTURE: &str = r#"
@@ -189,6 +189,8 @@ impl Renderer {
             gl.BindVertexArray(self.texture_vao);
             gl.ActiveTexture(gl::TEXTURE0);
             gl.BindTexture(gl::TEXTURE_2D, self.color_tex);
+            gl.ActiveTexture(gl::TEXTURE1);
+            gl.BindTexture(gl::TEXTURE_2D, self.depth_tex);
             gl.DrawArrays(gl::TRIANGLE_STRIP, 0, 4);
         }
         Ok(())

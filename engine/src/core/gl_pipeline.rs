@@ -9,7 +9,6 @@ pub struct GlBindings {
     vao_vertices: Vec<gl::GLuint>,
     vbo_indices: gl::GLuint,
     num_indices: gl::GLsizei,
-    textures: Vec<gl::GLuint>,
 }
 
 pub mod v_pos_norm {
@@ -130,7 +129,6 @@ pub mod v_pos_norm {
                 vao_vertices: vec![vao],
                 vbo_indices,
                 num_indices,
-                textures: vec![],
             })
         }
 

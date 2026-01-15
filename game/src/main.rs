@@ -101,7 +101,14 @@ mod win32 {
             LRESULT(0)
         }
 
-        fn on_mouse_event(&mut self, msg: u32, x: i32, y: i32, _keys: u32, delta: i32) -> LRESULT {
+        fn on_mouse_event(
+            &mut self,
+            msg: u32,
+            _x: i32,
+            _y: i32,
+            _keys: u32,
+            delta: i32,
+        ) -> LRESULT {
             match msg {
                 WM_MOUSEWHEEL => self.input.add_event(input::Event::Wheel { delta }),
                 WM_LBUTTONDOWN => self.input.add_event(input::Event::ButtonDown { button: 1 }),
