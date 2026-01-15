@@ -1,0 +1,7 @@
+[workspace]
+members = ["engine", "game"]
+resolver = "2"
+
+[workspace.dependencies]
+windows = "0.59"
+x11 = "2.21"
