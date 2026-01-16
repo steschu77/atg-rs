@@ -15,3 +15,7 @@ x11 = { workspace = true, features = ["xlib", "glx"] }
 [build-dependencies]
 embed-resource = "2.5"
 static_vcruntime = "2.0"
+
+[lints.clippy]
+collapsible_if = "allow"
+upper_case_acronyms = "allow"

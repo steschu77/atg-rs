@@ -3,6 +3,13 @@ name = "engine"
 version = "0.1.0"
 edition = "2024"
 
+[dependencies]
+miniwebp = { workspace = true }
+miniz = { workspace = true }
+log = { workspace = true, features = ["std"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
 [target.'cfg(windows)'.dependencies]
 windows = { workspace = true, features = [
     "Win32_System", "Win32_System_IO", "Win32_System_LibraryLoader", "Win32_System_Threading",
@@ -13,3 +20,7 @@ windows = { workspace = true, features = [
 
 [target.'cfg(unix)'.dependencies]
 x11 = { workspace = true, features = ["xlib", "glx"] }
+
+[lints.clippy]
+collapsible_if = "allow"
+upper_case_acronyms = "allow"

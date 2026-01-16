@@ -364,7 +364,7 @@ pub fn get_uniform_location(
 }
 
 // --------------------------------------------------------------------------------
-fn check_texture_size(size: usize, max_size: i32) -> Result<i32> {
+pub fn check_texture_size(size: usize, max_size: i32) -> Result<i32> {
     let size = size.try_into().map_err(|_| Error::InvalidTextureSize)?;
     if size == 0 || size > max_size {
         Err(Error::InvalidTextureSize)

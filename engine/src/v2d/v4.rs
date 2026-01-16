@@ -1,6 +1,6 @@
-use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
-use super::v3::V3;
 use super::float_eq::float_eq_rel;
+use super::v3::V3;
+use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 // ----------------------------------------------------------------------------
 #[derive(Debug, Copy, Clone)]
@@ -17,7 +17,7 @@ impl Default for V4 {
 
 // ----------------------------------------------------------------------------
 impl PartialEq for V4 {
-    #[rustfmt::skip]    
+    #[rustfmt::skip]
     fn eq(&self, rhs: &Self) -> bool {
         float_eq_rel(self.x0(), rhs.x0()) &&
         float_eq_rel(self.x1(), rhs.x1()) &&
@@ -263,7 +263,6 @@ impl V4 {
             0.0,
         ])
     }
-
 }
 
 #[cfg(test)]
