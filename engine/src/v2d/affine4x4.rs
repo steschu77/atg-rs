@@ -1,7 +1,7 @@
 use crate::v2d::{m4x4::M4x4, v4::V4};
 
 // ----------------------------------------------------------------------------
-#[rustfmt::skip]    
+#[rustfmt::skip]
 pub fn translate(v: &V4) -> M4x4
 {
     let [x0, x1, x2, x3] = v.to_array();
@@ -15,13 +15,12 @@ pub fn translate(v: &V4) -> M4x4
 }
 
 // ----------------------------------------------------------------------------
-pub fn scale(v: &V4) -> M4x4
-{
+pub fn scale(v: &V4) -> M4x4 {
     M4x4::diag(v.to_array())
 }
 
 // ----------------------------------------------------------------------------
-#[rustfmt::skip]    
+#[rustfmt::skip]
 pub fn rotate_x0(rad: f32) -> M4x4
 {
     let s = rad.sin();

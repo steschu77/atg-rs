@@ -1,6 +1,6 @@
-use std::ptr::NonNull;
 use super::opengl::*;
 use crate::error::{Error, Result};
+use std::ptr::NonNull;
 use x11::glx::*;
 use x11::xlib::*;
 
@@ -17,12 +17,14 @@ impl LinuxGLContext {
         window: Window,
     ) -> Result<Self> {
         let mut attribs = [GLX_RGBA, GLX_DOUBLEBUFFER, GLX_DEPTH_SIZE, 24, 0];
-        let visual_info = unsafe { glXChooseVisual(display.as_ptr(), screen, attribs.as_mut_ptr()) };
+        let visual_info =
+            unsafe { glXChooseVisual(display.as_ptr(), screen, attribs.as_mut_ptr()) };
         if visual_info.is_null() {
             return Err(Error::InvalidVisualInfo);
         }
 
-        let context = unsafe { glXCreateContext(display.as_ptr(), visual_info, std::ptr::null_mut(), 1) };
+        let context =
+            unsafe { glXCreateContext(display.as_ptr(), visual_info, std::ptr::null_mut(), 1) };
         if context.is_null() {
             return Err(Error::InvalidContext);
         }

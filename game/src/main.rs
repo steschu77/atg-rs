@@ -257,7 +257,7 @@ mod linux {
     pub fn main() -> Result<()> {
         let display = unsafe { XOpenDisplay(std::ptr::null()) };
         let display = NonNull::new(display).ok_or(Error::InvalidDisplay)?;
-            
+
         let screen = unsafe { XDefaultScreen(display.as_ptr()) };
         let root = unsafe { XRootWindow(display.as_ptr(), screen) };
 
@@ -283,7 +283,7 @@ mod linux {
         let mut game_loop = GameLoop::new(t_update);
         let mut game = super::game::Game::new(gl, t_update)?;
         let mut input = input::Input::new();
-        
+
         game.resize(cx as i32, cy as i32);
 
         loop {
