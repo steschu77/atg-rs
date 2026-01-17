@@ -6,6 +6,7 @@ pub mod game_loop;
 pub mod game_object;
 pub mod gl_graphics;
 pub mod gl_pipeline;
+pub mod gl_pipeline_colored;
 pub mod gl_renderer;
 pub mod input;
 pub mod player;

@@ -1,7 +1,8 @@
 use crate::core::gl_graphics::{
     create_framebuffer, create_program, create_texture_vao, print_opengl_info,
 };
-use crate::core::gl_pipeline::{GlBindings, v_pos_norm::Vertex};
+use crate::core::gl_pipeline::GlBindings;
+use crate::core::gl_pipeline_colored;
 use crate::core::world::World;
 use crate::core::{IRenderer, gl_pipeline};
 use crate::error::Result;
@@ -36,64 +37,9 @@ void main() {
     FragColor = texture(texture1, TexCoord.st + noise);
 }"#;
 
-// --------------------------------------------------------------------------------
-fn add_cube_quad(verts: &mut Vec<Vertex>, indices: &mut Vec<u32>, u: V3, v: V3) {
-    let i = verts.len() as u32;
-    let n = V3::cross(&u, &v);
-    verts.extend_from_slice(&[
-        Vertex { pos: n - u - v, n },
-        Vertex { pos: n + u - v, n },
-        Vertex { pos: n + u + v, n },
-        Vertex { pos: n - u + v, n },
-    ]);
-    indices.extend_from_slice(&[i, i + 1, i + 2, i + 2, i + 3, i]);
-}
-
-// --------------------------------------------------------------------------------
-fn create_cube_mesh() -> (Vec<Vertex>, Vec<u32>) {
-    const U_V_N: [(V3, V3); 3] = [
-        (V3::new([1.0, 0.0, 0.0]), V3::new([0.0, 1.0, 0.0])),
-        (V3::new([0.0, 1.0, 0.0]), V3::new([0.0, 0.0, 1.0])),
-        (V3::new([0.0, 0.0, 1.0]), V3::new([1.0, 0.0, 0.0])),
-    ];
-
-    let mut verts = Vec::with_capacity(24);
-    let mut indices = Vec::with_capacity(36);
-    for (u, v) in U_V_N {
-        add_cube_quad(&mut verts, &mut indices, u, v);
-        add_cube_quad(&mut verts, &mut indices, v, u);
-    }
-
-    (verts, indices)
-}
-
-// --------------------------------------------------------------------------------
-fn add_plane_quad(verts: &mut Vec<Vertex>, indices: &mut Vec<u32>, u: V3, v: V3) {
-    let i = verts.len() as u32;
-    let n = V3::cross(&u, &v);
-    verts.extend_from_slice(&[
-        Vertex { pos: -u - v, n },
-        Vertex { pos: u - v, n },
-        Vertex { pos: u + v, n },
-        Vertex { pos: -u + v, n },
-    ]);
-    indices.extend_from_slice(&[i, i + 1, i + 2, i + 2, i + 3, i]);
-}
-
-// --------------------------------------------------------------------------------
-fn create_plane_mesh() -> (Vec<Vertex>, Vec<u32>) {
-    let mut verts = Vec::with_capacity(4);
-    let mut indices = Vec::with_capacity(6);
-    let u = V3::new([1.0, 0.0, 0.0]);
-    let v = V3::new([0.0, 0.0, 1.0]);
-    add_plane_quad(&mut verts, &mut indices, v, u);
-
-    (verts, indices)
-}
-
 pub struct Renderer {
     gl: Rc<gl::OpenGlFunctions>,
-    pipe: gl_pipeline::v_pos_norm::GlPipeline,
+    pipes: Vec<gl_pipeline_colored::GlPipeline>,
     meshes: Vec<GlBindings>,
 
     texture_vao: gl::GLuint,
@@ -112,14 +58,14 @@ impl Renderer {
         let texture_program = create_program(&gl, "texture", VS_TEXTURE, FS_TEXTURE).unwrap();
         let (fbo, color_tex, depth_tex) = create_framebuffer(&gl, 800, 600)?;
 
-        let pipe = gl_pipeline::v_pos_norm::GlPipeline::new(Rc::clone(&gl))?;
-        let (verts, indices) = create_cube_mesh();
-        let cube = pipe.create_bindings(&verts, &indices)?;
-        let (verts, indices) = create_plane_mesh();
-        let plane = pipe.create_bindings(&verts, &indices)?;
+        let pipe_colored = gl_pipeline_colored::GlPipeline::new(Rc::clone(&gl))?;
+        let (verts, indices) = gl_pipeline_colored::create_cube_mesh();
+        let cube = pipe_colored.create_bindings(&verts, &indices)?;
+        let (verts, indices) = gl_pipeline_colored::create_plane_mesh();
+        let plane = pipe_colored.create_bindings(&verts, &indices)?;
 
         Ok(Self {
-            pipe,
+            pipes: vec![pipe_colored],
             gl,
             meshes: vec![cube, plane],
             texture_vao,
@@ -147,7 +93,7 @@ impl Renderer {
             gl.Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
 
-        let mut uniforms = gl_pipeline::v_pos_norm::Uniforms {
+        let mut uniforms = gl_pipeline::Uniforms {
             model: M4x4::identity(),
             view,
             projection,
@@ -162,10 +108,12 @@ impl Renderer {
         let objects = world.objects();
 
         for object in objects {
-            if let Some(mesh) = self.meshes.get(object.mesh_id as usize) {
+            let mesh = self.meshes.get(object.mesh_id as usize);
+            let pipe = self.pipes.get(object.pipe_id as usize);
+            if let (Some(mesh), Some(pipe)) = (mesh, pipe) {
                 uniforms.model = object.transform.into();
                 uniforms.mat_id = object.material_id as gl::GLint;
-                self.pipe.render(mesh, &uniforms)?;
+                pipe.render(mesh, &uniforms)?;
             }
         }
 
