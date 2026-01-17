@@ -25,6 +25,7 @@ mod win32 {
     use engine::core::input::Key;
     use engine::error::{Error, Result};
     use engine::sys::win32::Win32GLContext;
+    use engine::util::logger;
     use windows::Win32::UI::Input::{
         GetRawInputData, HRAWINPUT, KeyboardAndMouse, RAWINPUT, RAWINPUTHEADER, RID_INPUT,
         RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
@@ -73,6 +74,8 @@ mod win32 {
             let win32 = Win32GLContext::from_hwnd(hwnd).unwrap();
             let game_loop = GameLoop::new(t_update);
             let gl = win32.load()?;
+
+            log::info!("Game is ready.");
             Ok(Self {
                 clock: Clock::new(),
                 win32,
@@ -103,7 +106,7 @@ mod win32 {
                 .game_loop
                 .step(&mut self.game, &self.clock, &events, &state)
             {
-                eprintln!("Game loop exited with: {e:?}");
+                log::info!("Game loop exited with: {e:?}");
                 unsafe { PostQuitMessage(0) };
                 return LRESULT(0);
             }
@@ -226,6 +229,8 @@ mod win32 {
 
     // ------------------------------------------------------------------------
     pub fn main() -> Result<()> {
+        let _ = logger::init_logger(log::LevelFilter::Info);
+
         let hwnd = engine::sys::win32::window::WindowProc::<GameWindow>::create(
             "Game",
             "GameWindow",
@@ -249,6 +254,7 @@ mod linux {
     use engine::core::input::Key;
     use engine::error::{Error, Result};
     use engine::sys::linux::LinuxGLContext;
+    use engine::util::logger;
     use std::ptr::NonNull;
     use x11::xlib::{
         XCloseDisplay, XCreateSimpleWindow, XDefaultScreen, XDestroyWindow, XEvent, XLookupKeysym,
@@ -257,6 +263,8 @@ mod linux {
     //use x11::xlib::{XDisplayHeight, XDisplayWidth};
 
     pub fn main() -> Result<()> {
+        let _ = logger::init_logger(log::LevelFilter::Info);
+
         let display = unsafe { XOpenDisplay(std::ptr::null()) };
         let display = NonNull::new(display).ok_or(Error::InvalidDisplay)?;
 
