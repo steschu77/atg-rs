@@ -34,7 +34,7 @@ impl Terrain {
                             rotation: V4::default(),
                         },
                         pipe_id: 0,
-                        mesh_id: 0,
+                        mesh_id: 1,
                         material_id: 0,
                         ..Default::default()
                     });
