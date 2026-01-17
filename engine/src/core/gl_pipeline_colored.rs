@@ -1,5 +1,5 @@
 use crate::core::gl_graphics;
-use crate::core::gl_pipeline::{GlBindings, GlPipeline, GlUniforms};
+use crate::core::gl_pipeline::{GlMaterial, GlMesh, GlPipeline, GlUniforms};
 use crate::error::Result;
 use crate::sys::opengl as gl;
 use crate::v2d::v3::V3;
@@ -68,6 +68,7 @@ pub fn create_plane_mesh() -> (Vec<Vertex>, Vec<u32>) {
 }
 
 // ----------------------------------------------------------------------------
+#[derive(Debug)]
 pub struct GlColoredPipeline {
     pub gl: Rc<gl::OpenGlFunctions>,
     pub shader: gl::GLuint,
@@ -119,7 +120,7 @@ impl GlColoredPipeline {
         })
     }
 
-    pub fn create_bindings(&self, vertices: &[Vertex], indices: &[u32]) -> Result<GlBindings> {
+    pub fn create_bindings(&self, vertices: &[Vertex], indices: &[u32]) -> Result<GlMesh> {
         let gl = &self.gl;
         let vao = gl_graphics::create_vertex_array(gl);
         let _vbo = unsafe {
@@ -157,19 +158,50 @@ impl GlColoredPipeline {
             (0, 0)
         };
 
-        Ok(GlBindings {
+        Ok(GlMesh {
             vao_vertices: vec![vao],
             vbo_indices,
             num_indices,
             num_vertices: vertices.len() as gl::GLsizei,
         })
     }
+
+    pub fn delete_bindings(&self, bindings: &GlMesh) {
+        let gl = &self.gl;
+        unsafe {
+            for vao in &bindings.vao_vertices {
+                gl.DeleteVertexArrays(1, vao);
+            }
+            if bindings.vbo_indices != 0 {
+                gl.DeleteBuffers(1, &bindings.vbo_indices);
+            }
+        }
+    }
+
+    pub fn create_cube(&self) -> Result<GlMesh> {
+        let (verts, indices) = create_cube_mesh();
+        self.create_bindings(&verts, &indices)
+    }
+
+    pub fn create_plane(&self) -> Result<GlMesh> {
+        let (verts, indices) = create_plane_mesh();
+        self.create_bindings(&verts, &indices)
+    }
 }
 
 // ----------------------------------------------------------------------------
 impl GlPipeline for GlColoredPipeline {
-    fn render(&self, bindings: &GlBindings, uniforms: &GlUniforms) -> Result<()> {
+    fn render(
+        &self,
+        bindings: &GlMesh,
+        material: &GlMaterial,
+        uniforms: &GlUniforms,
+    ) -> Result<()> {
         let gl = &self.gl;
+        let color = match material {
+            GlMaterial::Color { color } => *color,
+            _ => V3::new([1.0, 1.0, 1.0]),
+        };
         unsafe {
             gl.UseProgram(self.shader);
             gl.BindVertexArray(bindings.vao_vertices[0]);
@@ -186,7 +218,7 @@ impl GlPipeline for GlColoredPipeline {
             gl.Uniform3fv(self.uid_light_pos, 1, uniforms.light_pos.as_ptr());
             gl.Uniform3fv(self.uid_view_pos, 1, uniforms.view_pos.as_ptr());
             gl.Uniform3fv(self.uid_light_color, 1, uniforms.light_color.as_ptr());
-            gl.Uniform3fv(self.uid_object_color, 1, uniforms.object_color.as_ptr());
+            gl.Uniform3fv(self.uid_object_color, 1, color.as_ptr());
             gl.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, bindings.vbo_indices);
             gl.DrawElements(
                 gl::TRIANGLES,

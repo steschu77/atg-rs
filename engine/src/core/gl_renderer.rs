@@ -1,9 +1,6 @@
 use crate::core::gl_graphics::{
     create_framebuffer, create_program, create_texture_vao, print_opengl_info,
 };
-use crate::core::gl_pipeline::GlBindings;
-use crate::core::gl_pipeline_colored::{self, GlColoredPipeline};
-use crate::core::gl_pipeline_msdftex::GlMSDFTexPipeline;
 use crate::core::world::World;
 use crate::core::{IRenderer, gl_pipeline};
 use crate::error::Result;
@@ -40,9 +37,6 @@ void main() {
 
 pub struct Renderer {
     gl: Rc<gl::OpenGlFunctions>,
-    pipes: Vec<Box<dyn gl_pipeline::GlPipeline>>,
-    meshes: Vec<GlBindings>,
-
     texture_vao: gl::GLuint,
     texture_program: gl::GLuint,
     fbo: gl::GLuint,
@@ -51,26 +45,15 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(gl: gl::OpenGlFunctions) -> Result<Self> {
-        let gl = Rc::new(gl);
+    pub fn new(gl: Rc<gl::OpenGlFunctions>) -> Result<Self> {
         print_opengl_info(&gl);
 
         let texture_vao = create_texture_vao(&gl);
         let texture_program = create_program(&gl, "texture", VS_TEXTURE, FS_TEXTURE).unwrap();
         let (fbo, color_tex, depth_tex) = create_framebuffer(&gl, 800, 600)?;
 
-        let pipe_colored = Box::new(GlColoredPipeline::new(Rc::clone(&gl))?);
-        let pipe_msdftex = Box::new(GlMSDFTexPipeline::new(Rc::clone(&gl))?);
-
-        let (verts, indices) = gl_pipeline_colored::create_cube_mesh();
-        let cube = pipe_colored.create_bindings(&verts, &indices)?;
-        let (verts, indices) = gl_pipeline_colored::create_plane_mesh();
-        let plane = pipe_colored.create_bindings(&verts, &indices)?;
-
         Ok(Self {
-            pipes: vec![pipe_colored, pipe_msdftex],
             gl,
-            meshes: vec![cube, plane],
             texture_vao,
             texture_program,
             fbo,
@@ -109,14 +92,18 @@ impl Renderer {
         };
 
         let objects = world.objects();
+        let meshes = world.meshes();
+        let materials = world.materials();
+        let pipes = world.pipes();
 
         for object in objects {
-            let mesh = self.meshes.get(object.mesh_id as usize);
-            let pipe = self.pipes.get(object.pipe_id as usize);
-            if let (Some(mesh), Some(pipe)) = (mesh, pipe) {
+            let mesh = meshes.get(object.mesh_id);
+            let pipe = pipes.get(object.pipe_id);
+            let material = materials.get(object.material_id);
+            if let (Some(mesh), Some(material), Some(pipe)) = (mesh, material, pipe) {
                 uniforms.model = object.transform.into();
                 uniforms.mat_id = object.material_id as gl::GLint;
-                pipe.render(mesh, &uniforms)?;
+                pipe.render(mesh, material, &uniforms)?;
             }
         }
 

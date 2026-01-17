@@ -11,7 +11,7 @@ pub fn load_webp(
     filter: GLint,
     wrap: GLint,
     path: &Path,
-) -> Result<GLuint> {
+) -> Result<(usize, usize, GLuint)> {
     let contents = std::fs::read(path)?;
     let frame = miniwebp::read_image(&contents)?;
 
@@ -27,7 +27,7 @@ pub fn load_webp(
     let texture = gl_graphics::create_texture(gl, tx_width, tx_height, 1, &rgb.data, filter, wrap)?;
 
     log::info!("Loaded {path:?} as texture {texture} ({tx_width}x{tx_height})");
-    Ok(texture)
+    Ok((tx_width, tx_height, texture))
 }
 
 // ------------------------------------------------------------------------
@@ -36,7 +36,7 @@ pub fn load_png(
     filter: GLint,
     wrap: GLint,
     path: &Path,
-) -> Result<GLuint> {
+) -> Result<(usize, usize, GLuint)> {
     let contents = std::fs::read(path)?;
     let (png, _plte, data) = miniz::png_read::png_read(&contents)?;
 
@@ -58,5 +58,5 @@ pub fn load_png(
     let texture = gl_graphics::create_texture(gl, tx_width, tx_height, 0, &aligned, filter, wrap)?;
 
     log::info!("Loaded {path:?} as texture {texture} ({tx_width}x{tx_height})");
-    Ok(texture)
+    Ok((tx_width, tx_height, texture))
 }

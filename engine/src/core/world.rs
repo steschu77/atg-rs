@@ -1,31 +1,85 @@
-use crate::core::game_object::GameObject;
+use crate::core::game_object::{GameObject, Transform};
+use crate::core::gl_font;
+use crate::core::gl_pipeline::{self, GlMaterial};
+use crate::core::gl_pipeline_colored::{self, GlColoredPipeline};
+use crate::core::gl_pipeline_msdftex::GlMSDFTexPipeline;
+use crate::core::gl_text::create_text_mesh;
 use crate::core::{camera::Camera, input, player::Player, terrain::Terrain};
 use crate::error::Result;
-use crate::v2d::v4::V4;
+use crate::sys::opengl as gl;
+use crate::v2d::{v3::V3, v4::V4};
+use std::path::Path;
+use std::rc::Rc;
 
 // ----------------------------------------------------------------------------
-#[derive(Debug)]
 pub struct World {
-    // The World struct can hold game state, entities, components, etc.
     terrain: Terrain,
     player: Player,
     camera: Camera,
+    debug: GameObject,
+    font: gl_font::Font,
+    colored_pipe: Rc<GlColoredPipeline>,
+    msdftex_pipe: Rc<GlMSDFTexPipeline>,
+    pipes: Vec<Rc<dyn gl_pipeline::GlPipeline>>,
+    meshes: gl_pipeline::GlMeshes,
+    materials: gl_pipeline::GlMaterials,
     t: std::time::Duration,
 }
 
 impl World {
-    pub fn new() -> Self {
+    pub fn new(gl: Rc<gl::OpenGlFunctions>) -> Result<Self> {
         let terrain = Terrain::default();
         let player = Player::default();
         let camera = Camera::new(V4::new([0.0, 2.0, 4.0, 1.0]), V4::new([0.0, 0.0, 0.0, 1.0]));
         let t = std::time::Duration::ZERO;
 
-        World {
+        let font = gl_font::Font::load(&gl, Path::new("assets/fonts/roboto"))?;
+
+        let colored_pipe = Rc::new(GlColoredPipeline::new(Rc::clone(&gl))?);
+        let msdftex_pipe = Rc::new(GlMSDFTexPipeline::new(Rc::clone(&gl))?);
+
+        let cube = colored_pipe.create_cube()?;
+        let plane = colored_pipe.create_plane()?;
+        let debug = create_text_mesh(&msdftex_pipe, &font, "Debug Text: Hello, World!")?;
+
+        let meshes = gl_pipeline::GlMeshes::new(&[cube, plane, debug]);
+        let materials = gl_pipeline::GlMaterials::new(&[
+            GlMaterial::Texture {
+                texture: font.texture,
+            },
+            GlMaterial::Color {
+                color: V3::new([0.8, 0.2, 0.2]),
+            },
+            GlMaterial::Color {
+                color: V3::new([0.2, 0.8, 0.2]),
+            },
+        ]);
+
+        let debug = GameObject {
+            name: String::from("debug"),
+            transform: Transform {
+                position: V4::new([1.0, 0.0, 0.0, 1.0]),
+                rotation: V4::default(),
+            },
+            pipe_id: gl_pipeline::GlPipelineType::MSDFTex.into(),
+            mesh_id: 2,
+            material_id: 0,
+            ..Default::default()
+        };
+
+        Ok(World {
             terrain,
             camera,
             player,
+            debug,
+            font,
+            colored_pipe: Rc::clone(&colored_pipe),
+            msdftex_pipe: Rc::clone(&msdftex_pipe),
+            pipes: vec![colored_pipe, msdftex_pipe],
+            meshes,
+            materials,
             t,
-        }
+        })
     }
 
     pub fn update(
@@ -44,17 +98,37 @@ impl World {
     pub fn objects(&self) -> Vec<GameObject> {
         let mut objects = self.terrain.visible_chunks();
         objects.push(self.player.game_object.clone());
+        objects.push(self.debug.clone());
         objects
+    }
+
+    pub fn pipes(&self) -> &Vec<Rc<dyn gl_pipeline::GlPipeline>> {
+        &self.pipes
+    }
+
+    pub fn meshes(&self) -> &gl_pipeline::GlMeshes {
+        &self.meshes
+    }
+
+    pub fn materials(&self) -> &gl_pipeline::GlMaterials {
+        &self.materials
     }
 
     pub fn camera(&self) -> &Camera {
         &self.camera
     }
-}
 
-// ----------------------------------------------------------------------------
-impl Default for World {
-    fn default() -> Self {
-        Self::new()
+    pub fn create_text(&mut self, text: &str) -> Result<gl_pipeline::GlMesh> {
+        create_text_mesh(&self.msdftex_pipe, &self.font, text)
+    }
+
+    pub fn create_cube(&self) -> Result<gl_pipeline::GlMesh> {
+        let (verts, indices) = gl_pipeline_colored::create_cube_mesh();
+        self.colored_pipe.create_bindings(&verts, &indices)
+    }
+
+    pub fn create_plane(&self) -> Result<gl_pipeline::GlMesh> {
+        let (verts, indices) = gl_pipeline_colored::create_plane_mesh();
+        self.colored_pipe.create_bindings(&verts, &indices)
     }
 }

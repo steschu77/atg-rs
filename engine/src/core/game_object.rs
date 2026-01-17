@@ -20,7 +20,7 @@ pub struct GameObject {
     pub name: String,
     pub children: Vec<GameObject>,
     pub transform: Transform,
-    pub pipe_id: u32,
-    pub mesh_id: u32,
-    pub material_id: u32,
+    pub pipe_id: usize,
+    pub mesh_id: usize,
+    pub material_id: usize,
 }
