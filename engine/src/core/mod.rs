@@ -3,6 +3,7 @@ use crate::error::Result;
 pub mod camera;
 pub mod clock;
 pub mod game_loop;
+pub mod game_object;
 pub mod gl_graphics;
 pub mod gl_pipeline;
 pub mod gl_renderer;
@@ -19,7 +20,12 @@ pub trait IClock {
 
 // ----------------------------------------------------------------------------
 pub trait IGame {
-    fn update(&mut self, t_now: &std::time::Duration, input: &mut input::Input) -> Result<()>;
+    fn update(
+        &mut self,
+        t_now: &std::time::Duration,
+        events: &input::Events,
+        state: &input::State,
+    ) -> Result<()>;
     fn render(&mut self) -> Result<()>;
 }
 
@@ -88,7 +94,8 @@ pub mod tests {
         fn update(
             &mut self,
             _t_now: &std::time::Duration,
-            _input: &mut input::Input,
+            _events: &input::Events,
+            _state: &input::State,
         ) -> Result<()> {
             self.update_count += 1;
             self.clock.advance(self.t_update);
@@ -132,7 +139,10 @@ pub mod tests {
             std::time::Duration::from_millis(10),
             std::time::Duration::from_millis(20),
         );
-        assert_eq!(game.update(&clock.now(), &mut input), Ok(()));
+        assert_eq!(
+            game.update(&clock.now(), &input.take_events(), &input.take_state()),
+            Ok(())
+        );
         assert_eq!(game.render(), Ok(()));
         assert_eq!(game.loops().len(), 1);
     }

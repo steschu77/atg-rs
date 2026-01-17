@@ -1,46 +1,43 @@
-use crate::core::world::{EntityComponentSystem, EntityFlag, EntityId, Transform};
+use crate::core::game_object::GameObject;
+use crate::core::input;
 use crate::error::Result;
-use crate::v2d::v4::V4;
+use crate::v2d::{r2::R2, v2::V2, v4::V4};
 
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
 pub struct Player {
-    entity_id: Option<EntityId>,
+    pub game_object: GameObject,
+    pub velocity: V2,
+    pub rotation: R2,
+    pub speed: f32,
 }
 
 // ----------------------------------------------------------------------------
 impl Player {
     pub fn new() -> Self {
-        Self { entity_id: None }
+        Self {
+            game_object: GameObject::default(),
+            velocity: V2::default(),
+            rotation: R2::default(),
+            speed: 5.0,
+        }
     }
 
-    pub fn update(
-        &mut self,
-        ecs: &mut EntityComponentSystem,
-        dt: &std::time::Duration,
-    ) -> Result<()> {
-        if self.entity_id.is_none() {
-            self.entity_id = Some(ecs.add_entity(
-                EntityFlag::Mesh as u8,
-                "player".to_string(),
-                Transform {
-                    position: V4::new([2.0, 2.0, 1.0, 1.0]),
-                    rotation: V4::new([0.0, 0.0, 0.0, 1.0]),
-                },
-                0,
-                0,
-                1,
-            ));
+    pub fn update(&mut self, dt: &std::time::Duration, input: &input::State) -> Result<()> {
+        if input.is_pressed(input::Key::MoveForward) {
+            let direction = self.rotation.x_axis();
+            self.velocity = direction * self.speed;
         }
 
         let dt = dt.as_secs_f32();
-        let direction = V4::new([1.0, 0.0, 0.0, 0.0]);
+        let displacement = self.velocity * dt;
+        let displacement = V4::new([displacement.x0(), displacement.x1(), 0.0, 0.0]);
+        self.game_object.transform.position += displacement;
 
-        if let Some(entity_id) = &self.entity_id {
-            if let Some(entity) = ecs.get_mut(*entity_id) {
-                entity.transform.position += direction * dt;
-            }
-        }
+        let rotation = self.rotation.get();
+        let rotation = V4::new([0.0, 0.0, rotation, 0.0]);
+        self.game_object.transform.rotation = rotation;
+
         Ok(())
     }
 }

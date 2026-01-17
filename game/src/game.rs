@@ -7,34 +7,31 @@ use engine::sys::opengl as gl;
 pub struct Game {
     renderer: Renderer,
     world: World,
-    t_update: std::time::Duration,
 }
 
 impl IGame for Game {
-    fn update(&mut self, t_now: &std::time::Duration, input: &mut input::Input) -> Result<()> {
-        // Update the game world, e.g., physics, AI, etc.
-        self.world.update(t_now)?;
-
-        let events = input.take_events();
-        self.input_events(&events)?;
-
-        self.input_state(input);
+    fn update(
+        &mut self,
+        dt: &std::time::Duration,
+        events: &input::Events,
+        state: &input::State,
+    ) -> Result<()> {
+        self.input_events(events)?;
+        self.world.update(dt, events, state)?;
         Ok(())
     }
 
     fn render(&mut self) -> Result<()> {
-        // Update the renderer with the current state of the world
         self.renderer.render(&self.world)?;
         Ok(())
     }
 }
 
 impl Game {
-    pub fn new(gl: gl::OpenGlFunctions, t_update: std::time::Duration) -> Result<Self> {
+    pub fn new(gl: gl::OpenGlFunctions) -> Result<Self> {
         Ok(Self {
             renderer: Renderer::new(gl)?,
             world: World::default(),
-            t_update,
         })
     }
 
@@ -54,31 +51,9 @@ impl Game {
                 input::Event::ButtonUp { button: 3 } => {
                     return Err(Error::GameOver);
                 }
-                input::Event::MouseMove { x, y } => {
-                    self.world.pan_camera(*x as f32 * 0.01);
-                    self.world.tilt_camera(*y as f32 * 0.01);
-                    //let d = V4::new([*x as f32, *y as f32, 0.0, 0.0]);
-                    //self.world.move_camera(d);
-                }
                 _ => {}
             }
         }
         Ok(())
-    }
-
-    fn input_state(&mut self, input: &input::Input) {
-        // Update the game state based on the current input state
-        if input.is_pressed(input::Key::MoveForward) {
-            self.world.move_forward(4.0 * self.t_update.as_secs_f32());
-        }
-        if input.is_pressed(input::Key::MoveBackward) {
-            self.world.move_backward(4.0 * self.t_update.as_secs_f32());
-        }
-        if input.is_pressed(input::Key::StrafeLeft) {
-            self.world.strafe_left(4.0 * self.t_update.as_secs_f32());
-        }
-        if input.is_pressed(input::Key::StrafeRight) {
-            self.world.strafe_right(4.0 * self.t_update.as_secs_f32());
-        }
     }
 }
