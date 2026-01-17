@@ -8,6 +8,7 @@ pub mod gl_graphics;
 pub mod gl_pipeline;
 pub mod gl_pipeline_colored;
 pub mod gl_renderer;
+pub mod gl_texture;
 pub mod input;
 pub mod player;
 pub mod terrain;
