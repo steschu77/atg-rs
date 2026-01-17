@@ -8,8 +8,10 @@ pub enum Key {
     LookDown = 4,
     MoveForward = 5,
     MoveBackward = 6,
-    StrafeLeft = 7,
-    StrafeRight = 8,
+    TurnLeft = 7,
+    TurnRight = 8,
+    StrafeLeft = 9,
+    StrafeRight = 10,
 }
 
 // ----------------------------------------------------------------------------

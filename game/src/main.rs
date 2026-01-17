@@ -217,8 +217,8 @@ mod win32 {
             VK_DOWN => Some(Key::LookDown),
             VK_W => Some(Key::MoveForward),
             VK_S => Some(Key::MoveBackward),
-            VK_A => Some(Key::StrafeLeft),
-            VK_D => Some(Key::StrafeRight),
+            VK_A => Some(Key::TurnLeft),
+            VK_D => Some(Key::TurnRight),
 
             _ => None,
         }

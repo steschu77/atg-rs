@@ -1,4 +1,4 @@
-use std::ops::{Add, Mul, Neg, Sub};
+use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use super::float_eq::float_eq_rel;
 use super::v2::V2;
@@ -39,11 +39,57 @@ impl Add for R2 {
 }
 
 // ----------------------------------------------------------------------------
+impl AddAssign for R2 {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = R2::new(self.radians + rhs.radians);
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl Add<f32> for R2 {
+    type Output = Self;
+
+    fn add(self, rhs: f32) -> Self {
+        R2::new(self.radians + rhs)
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl AddAssign<f32> for R2 {
+    fn add_assign(&mut self, rhs: f32) {
+        *self = R2::new(self.radians + rhs);
+    }
+}
+
+// ----------------------------------------------------------------------------
 impl Sub for R2 {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self {
         R2::new(self.radians - rhs.radians)
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl SubAssign for R2 {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = R2::new(self.radians - rhs.radians);
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl Sub<f32> for R2 {
+    type Output = Self;
+
+    fn sub(self, rhs: f32) -> Self {
+        R2::new(self.radians - rhs)
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl SubAssign<f32> for R2 {
+    fn sub_assign(&mut self, rhs: f32) {
+        *self = R2::new(self.radians - rhs);
     }
 }
 
@@ -64,6 +110,13 @@ impl Mul<R2> for f32 {
 
     fn mul(self, q: R2) -> R2 {
         R2::new(self * q.radians)
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl MulAssign<f32> for R2 {
+    fn mul_assign(&mut self, s: f32) {
+        *self = R2::new(self.radians * s);
     }
 }
 
