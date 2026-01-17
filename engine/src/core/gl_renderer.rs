@@ -2,7 +2,8 @@ use crate::core::gl_graphics::{
     create_framebuffer, create_program, create_texture_vao, print_opengl_info,
 };
 use crate::core::gl_pipeline::GlBindings;
-use crate::core::gl_pipeline_colored;
+use crate::core::gl_pipeline_colored::{self, GlColoredPipeline};
+use crate::core::gl_pipeline_msdftex::GlMSDFTexPipeline;
 use crate::core::world::World;
 use crate::core::{IRenderer, gl_pipeline};
 use crate::error::Result;
@@ -39,7 +40,7 @@ void main() {
 
 pub struct Renderer {
     gl: Rc<gl::OpenGlFunctions>,
-    pipes: Vec<gl_pipeline_colored::GlPipeline>,
+    pipes: Vec<Box<dyn gl_pipeline::GlPipeline>>,
     meshes: Vec<GlBindings>,
 
     texture_vao: gl::GLuint,
@@ -58,14 +59,16 @@ impl Renderer {
         let texture_program = create_program(&gl, "texture", VS_TEXTURE, FS_TEXTURE).unwrap();
         let (fbo, color_tex, depth_tex) = create_framebuffer(&gl, 800, 600)?;
 
-        let pipe_colored = gl_pipeline_colored::GlPipeline::new(Rc::clone(&gl))?;
+        let pipe_colored = Box::new(GlColoredPipeline::new(Rc::clone(&gl))?);
+        let pipe_msdftex = Box::new(GlMSDFTexPipeline::new(Rc::clone(&gl))?);
+
         let (verts, indices) = gl_pipeline_colored::create_cube_mesh();
         let cube = pipe_colored.create_bindings(&verts, &indices)?;
         let (verts, indices) = gl_pipeline_colored::create_plane_mesh();
         let plane = pipe_colored.create_bindings(&verts, &indices)?;
 
         Ok(Self {
-            pipes: vec![pipe_colored],
+            pipes: vec![pipe_colored, pipe_msdftex],
             gl,
             meshes: vec![cube, plane],
             texture_vao,
@@ -93,7 +96,7 @@ impl Renderer {
             gl.Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
 
-        let mut uniforms = gl_pipeline::Uniforms {
+        let mut uniforms = gl_pipeline::GlUniforms {
             model: M4x4::identity(),
             view,
             projection,
