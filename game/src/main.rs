@@ -76,7 +76,7 @@ mod win32 {
             Ok(Self {
                 clock: Clock::new(),
                 win32,
-                game: super::game::Game::new(gl, t_update)?,
+                game: super::game::Game::new(gl)?,
                 game_loop,
                 input: input::Input::new(),
             })
@@ -97,9 +97,11 @@ mod win32 {
         }
 
         fn on_gameloop(&mut self) -> LRESULT {
+            let events = self.input.take_events();
+            let state = self.input.take_state();
             if let Err(e) = self
                 .game_loop
-                .step(&mut self.game, &self.clock, &mut self.input)
+                .step(&mut self.game, &self.clock, &events, &state)
             {
                 eprintln!("Game loop exited with: {e:?}");
                 unsafe { PostQuitMessage(0) };
@@ -249,10 +251,10 @@ mod linux {
     use engine::sys::linux::LinuxGLContext;
     use std::ptr::NonNull;
     use x11::xlib::{
-        XCloseDisplay, XCreateSimpleWindow, XDefaultScreen, XDestroyWindow, XDisplayHeight,
-        XDisplayWidth, XEvent, XLookupKeysym, XMapWindow, XNextEvent, XOpenDisplay, XPending,
-        XRaiseWindow, XRootWindow, XSelectInput,
+        XCloseDisplay, XCreateSimpleWindow, XDefaultScreen, XDestroyWindow, XEvent, XLookupKeysym,
+        XMapWindow, XNextEvent, XOpenDisplay, XPending, XRaiseWindow, XRootWindow, XSelectInput,
     };
+    //use x11::xlib::{XDisplayHeight, XDisplayWidth};
 
     pub fn main() -> Result<()> {
         let display = unsafe { XOpenDisplay(std::ptr::null()) };
@@ -261,8 +263,8 @@ mod linux {
         let screen = unsafe { XDefaultScreen(display.as_ptr()) };
         let root = unsafe { XRootWindow(display.as_ptr(), screen) };
 
-        let cx = unsafe { XDisplayWidth(display.as_ptr(), screen) as u32 };
-        let cy = unsafe { XDisplayHeight(display.as_ptr(), screen) as u32 };
+        let cx = 1280; // unsafe { XDisplayWidth(display.as_ptr(), screen) as u32 };
+        let cy = 720; // unsafe { XDisplayHeight(display.as_ptr(), screen) as u32 };
         let win = unsafe { XCreateSimpleWindow(display.as_ptr(), root, 0, 0, cx, cy, 0, 0, 0) };
 
         unsafe {
@@ -281,7 +283,7 @@ mod linux {
 
         let t_update = std::time::Duration::from_millis(10);
         let mut game_loop = GameLoop::new(t_update);
-        let mut game = super::game::Game::new(gl, t_update)?;
+        let mut game = super::game::Game::new(gl)?;
         let mut input = input::Input::new();
 
         game.resize(cx as i32, cy as i32);
@@ -303,7 +305,10 @@ mod linux {
                 }
             }
 
-            if let Err(e) = game_loop.step(&mut game, &clock, &mut input) {
+            let events = input.take_events();
+            let state = input.take_state();
+
+            if let Err(e) = game_loop.step(&mut game, &clock, &events, &state) {
                 eprintln!("Game loop exited with: {e:?}");
                 unsafe {
                     XDestroyWindow(display.as_ptr(), win);

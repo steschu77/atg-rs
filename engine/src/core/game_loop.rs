@@ -18,7 +18,8 @@ impl GameLoop {
         &mut self,
         game: &mut Game,
         clock: &Clock,
-        input: &mut input::Input,
+        events: &input::Events,
+        state: &input::State,
     ) -> Result<()> {
         // game loop: https://gameprogrammingpatterns.com/game-loop.html
         let t0 = clock.now();
@@ -27,7 +28,7 @@ impl GameLoop {
         // (otherwise the next loop will be late again)
         let updates_needed = (self.t_lag.as_nanos() / self.dt_update.as_nanos()) as u32 + 1;
         for _ in 0..updates_needed.min(4) {
-            game.update(&self.dt_update, input)?;
+            game.update(&self.dt_update, events, state)?;
         }
 
         game.render()?;
@@ -59,12 +60,13 @@ mod tests {
         let t_update = std::time::Duration::from_millis(0);
         let t_render = std::time::Duration::from_millis(0);
 
-        let mut input = input::Input::new();
+        let events = input::Events::default();
+        let state = input::State::default();
         let clock = MockClock::default();
         let mut game = MockGame::new(&clock, t_update, t_render);
         let mut game_loop = GameLoop::new(t_step);
         for _ in 0..4 {
-            let _ = game_loop.step(&mut game, &clock, &mut input);
+            let _ = game_loop.step(&mut game, &clock, &events, &state);
         }
 
         // since processing time was 0 ms, every sleep call should be t_step
@@ -80,12 +82,13 @@ mod tests {
         let t_update = std::time::Duration::from_millis(10);
         let t_render = std::time::Duration::from_millis(20);
 
-        let mut input = input::Input::new();
+        let events = input::Events::default();
+        let state = input::State::default();
         let clock = MockClock::default();
         let mut game = MockGame::new(&clock, t_update, t_render);
         let mut game_loop = GameLoop::new(t_step);
         for _ in 0..6 {
-            let _ = game_loop.step(&mut game, &clock, &mut input);
+            let _ = game_loop.step(&mut game, &clock, &events, &state);
         }
 
         // since updating time and rendering time are larger than loop time,
@@ -103,12 +106,13 @@ mod tests {
         let t_update = std::time::Duration::from_millis(20);
         let t_render = std::time::Duration::from_millis(20);
 
-        let mut input = input::Input::new();
+        let events = input::Events::default();
+        let state = input::State::default();
         let clock = MockClock::default();
         let mut game = MockGame::new(&clock, t_update, t_render);
         let mut game_loop = GameLoop::new(t_step);
         for _ in 0..6 {
-            let _ = game_loop.step(&mut game, &clock, &mut input);
+            let _ = game_loop.step(&mut game, &clock, &events, &state);
         }
 
         // since updating time and rendering time are larger than step time,

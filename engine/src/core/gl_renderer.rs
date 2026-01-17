@@ -11,10 +11,10 @@ use crate::v2d::{m4x4::M4x4, v3::V3};
 use std::rc::Rc;
 
 const VS_TEXTURE: &str = r#"
-#version 300 es
+#version 330 core
 layout (location = 0) in vec2 aPosition;
 layout (location = 1) in vec2 aTexCoord;
-out mediump vec2 TexCoord;
+out vec2 TexCoord;
 void main() {
     gl_Position = vec4(aPosition, 0.0, 1.0);
     TexCoord = aTexCoord;
@@ -146,16 +146,7 @@ impl Renderer {
             gl.ClearColor(0.3, 0.2, 0.1, 1.0);
             gl.Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
-        /*
-                let view = affine4x4::look_at(
-                    V4::new([1.0, 3.0, 3.0, 1.0]),
-                    V4::new([0.0, 0.0, 0.0, 1.0]),
-                    V4::new([0.0, 0.0, 1.0, 0.0]),
-                );
 
-                let projection = affine4x4::perspective(45.0, 800.0 / 600.0, 0.1, 100.0);
-                let camera = projection * view;
-        */
         let mut uniforms = gl_pipeline::v_pos_norm::Uniforms {
             model: M4x4::identity(),
             view,
@@ -168,10 +159,12 @@ impl Renderer {
             object_color: V3::new([0.5, 1.0, 1.0]),
         };
 
-        for entity in world.mesh_entities() {
-            if let Some(mesh) = self.meshes.get(entity.mesh_id as usize) {
-                uniforms.model = entity.transform.into();
-                uniforms.mat_id = entity.material_id as gl::GLint;
+        let objects = world.objects();
+
+        for object in objects {
+            if let Some(mesh) = self.meshes.get(object.mesh_id as usize) {
+                uniforms.model = object.transform.into();
+                uniforms.mat_id = object.material_id as gl::GLint;
                 self.pipe.render(mesh, &uniforms)?;
             }
         }
