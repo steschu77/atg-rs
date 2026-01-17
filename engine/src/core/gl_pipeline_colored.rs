@@ -1,5 +1,5 @@
 use crate::core::gl_graphics;
-use crate::core::gl_pipeline::{GlBindings, Uniforms};
+use crate::core::gl_pipeline::{GlBindings, GlPipeline, GlUniforms};
 use crate::error::Result;
 use crate::sys::opengl as gl;
 use crate::v2d::v3::V3;
@@ -68,7 +68,7 @@ pub fn create_plane_mesh() -> (Vec<Vertex>, Vec<u32>) {
 }
 
 // ----------------------------------------------------------------------------
-pub struct GlPipeline {
+pub struct GlColoredPipeline {
     pub gl: Rc<gl::OpenGlFunctions>,
     pub shader: gl::GLuint,
     pub uid_model: gl::GLint,
@@ -83,7 +83,7 @@ pub struct GlPipeline {
 }
 
 // ----------------------------------------------------------------------------
-impl GlPipeline {
+impl GlColoredPipeline {
     pub fn new(gl: Rc<gl::OpenGlFunctions>) -> Result<Self> {
         let shader = gl_graphics::create_program(&gl, "gl_pos_col", VS_COLOR, FS_COLOR);
         if let Err(e) = shader {
@@ -104,7 +104,7 @@ impl GlPipeline {
             gl_graphics::get_uniform_location(&gl, shader, "lightColor").unwrap_or(-1);
         let uid_object_color =
             gl_graphics::get_uniform_location(&gl, shader, "objectColor").unwrap_or(-1);
-        Ok(GlPipeline {
+        Ok(GlColoredPipeline {
             gl,
             shader,
             uid_model,
@@ -161,10 +161,14 @@ impl GlPipeline {
             vao_vertices: vec![vao],
             vbo_indices,
             num_indices,
+            num_vertices: vertices.len() as gl::GLsizei,
         })
     }
+}
 
-    pub fn render(&self, bindings: &GlBindings, uniforms: &Uniforms) -> Result<()> {
+// ----------------------------------------------------------------------------
+impl GlPipeline for GlColoredPipeline {
+    fn render(&self, bindings: &GlBindings, uniforms: &GlUniforms) -> Result<()> {
         let gl = &self.gl;
         unsafe {
             gl.UseProgram(self.shader);
@@ -195,7 +199,8 @@ impl GlPipeline {
     }
 }
 
-impl Drop for GlPipeline {
+// ----------------------------------------------------------------------------
+impl Drop for GlColoredPipeline {
     fn drop(&mut self) {
         unsafe {
             self.gl.DeleteProgram(self.shader);
@@ -203,6 +208,7 @@ impl Drop for GlPipeline {
     }
 }
 
+// ----------------------------------------------------------------------------
 const VS_COLOR: &str = r#"
 #version 330 core
 layout (location = 0) in vec3 a_pos;
@@ -222,6 +228,7 @@ void main() {
     v_pos = (model * vec4(a_pos, 1.0)).xyz;
 }"#;
 
+// ----------------------------------------------------------------------------
 const FS_COLOR: &str = r#"
 #version 330 core
 in vec3 v_norm;

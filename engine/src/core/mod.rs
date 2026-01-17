@@ -7,6 +7,7 @@ pub mod game_object;
 pub mod gl_graphics;
 pub mod gl_pipeline;
 pub mod gl_pipeline_colored;
+pub mod gl_pipeline_msdftex;
 pub mod gl_renderer;
 pub mod gl_texture;
 pub mod input;
@@ -36,9 +37,6 @@ pub trait IRenderer {
     fn render(&self, world: &world::World) -> Result<()>;
     fn resize(&self, cx: i32, cy: i32);
 }
-
-// ----------------------------------------------------------------------------
-pub trait IScene {}
 
 // ----------------------------------------------------------------------------
 #[cfg(test)]

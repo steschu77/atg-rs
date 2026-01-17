@@ -1,0 +1,127 @@
+use crate::core::gl_graphics;
+use crate::core::gl_pipeline::{GlBindings, GlPipeline, GlUniforms};
+use crate::error::Result;
+use crate::sys::opengl as gl;
+use crate::v2d::v2::V2;
+use std::rc::Rc;
+
+// ----------------------------------------------------------------------------
+#[derive(Debug, Clone, Copy)]
+pub struct Vertex {
+    pub pos: V2,
+    pub tex: V2,
+}
+
+// ----------------------------------------------------------------------------
+pub struct GlMSDFTexPipeline {
+    pub gl: Rc<gl::OpenGlFunctions>,
+    pub shader: gl::GLuint,
+    pub uid_model: gl::GLint,
+    pub uid_view: gl::GLint,
+}
+
+// ----------------------------------------------------------------------------
+impl GlMSDFTexPipeline {
+    pub fn new(gl: Rc<gl::OpenGlFunctions>) -> Result<Self> {
+        let shader = gl_graphics::create_program(&gl, "msdftex", VS_MSDFTEX, FS_MSDFTEX);
+        if let Err(e) = shader {
+            println!("Error creating shader: {e:?}");
+            return Err(e);
+        };
+        let shader = shader.unwrap();
+        let uid_model = gl_graphics::get_uniform_location(&gl, shader, "model").unwrap_or(-1);
+        let uid_view = gl_graphics::get_uniform_location(&gl, shader, "camera").unwrap_or(-1);
+        Ok(GlMSDFTexPipeline {
+            gl,
+            shader,
+            uid_model,
+            uid_view,
+        })
+    }
+
+    pub fn create_bindings(&self, vertices: &[Vertex]) -> Result<GlBindings> {
+        let gl = &self.gl;
+        let vao = gl_graphics::create_vertex_array(gl);
+        let _vbo = unsafe {
+            gl_graphics::create_buffer(
+                gl,
+                gl::ARRAY_BUFFER,
+                vertices.as_ptr() as *const _,
+                std::mem::size_of_val(vertices),
+            )
+        };
+
+        let stride = std::mem::size_of::<Vertex>() as gl::GLint;
+        let pos_ofs = std::mem::offset_of!(Vertex, pos) as gl::GLint;
+        let tex_ofs = std::mem::offset_of!(Vertex, tex) as gl::GLint;
+
+        unsafe {
+            gl.EnableVertexAttribArray(0); // position
+            gl.VertexAttribPointer(0, 2, gl::FLOAT, gl::FALSE, stride, pos_ofs as *const _);
+            gl.EnableVertexAttribArray(1); // texture
+            gl.VertexAttribPointer(1, 2, gl::FLOAT, gl::FALSE, stride, tex_ofs as *const _);
+        }
+
+        Ok(GlBindings {
+            vao_vertices: vec![vao],
+            vbo_indices: 0,
+            num_indices: 0,
+            num_vertices: vertices.len() as gl::GLsizei,
+        })
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl GlPipeline for GlMSDFTexPipeline {
+    fn render(&self, bindings: &GlBindings, uniforms: &GlUniforms) -> Result<()> {
+        let gl = &self.gl;
+        unsafe {
+            gl.UseProgram(self.shader);
+            gl.BindVertexArray(bindings.vao_vertices[0]);
+            gl.UniformMatrix4fv(self.uid_model, 1, gl::FALSE, uniforms.model.as_ptr());
+            gl.UniformMatrix4fv(self.uid_view, 1, gl::FALSE, uniforms.view.as_ptr());
+            gl.DrawArrays(gl::TRIANGLES, 0, bindings.num_vertices);
+        }
+        Ok(())
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl Drop for GlMSDFTexPipeline {
+    fn drop(&mut self) {
+        unsafe {
+            self.gl.DeleteProgram(self.shader);
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+const VS_MSDFTEX: &str = r#"
+#version 330 core
+uniform mat4 model;
+uniform mat4 camera;
+
+layout (location = 0) in vec2 a_pos;
+layout (location = 1) in vec2 a_tex;
+
+out vec2 v_tex;
+
+void main() {
+    gl_Position = camera * model * vec4(a_pos, 0.0, 1.0);
+    v_tex = a_tex;
+}"#;
+
+// ----------------------------------------------------------------------------
+const FS_MSDFTEX: &str = r#"
+#version 330 core
+uniform sampler2D txtre;
+
+in mediump vec2 v_tex;
+out mediump vec4 FragColor;
+
+void main() {
+    mediump vec4 color = texture(txtre, v_tex.st);
+    mediump float sig_dist = color.a * 2.0 - 1.0;
+    mediump float alpha = smoothstep(-0.1, 0.1, sig_dist);
+    FragColor = vec4(alpha, alpha, alpha, alpha);
+}"#;
