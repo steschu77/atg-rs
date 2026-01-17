@@ -3,6 +3,7 @@ use engine::core::world::World;
 use engine::core::{IGame, IRenderer, input};
 use engine::error::{Error, Result};
 use engine::sys::opengl as gl;
+use std::rc::Rc;
 
 pub struct Game {
     renderer: Renderer,
@@ -29,10 +30,10 @@ impl IGame for Game {
 
 impl Game {
     pub fn new(gl: gl::OpenGlFunctions) -> Result<Self> {
-        Ok(Self {
-            renderer: Renderer::new(gl)?,
-            world: World::default(),
-        })
+        let gl = Rc::new(gl);
+        let renderer = Renderer::new(Rc::clone(&gl))?;
+        let world = World::new(Rc::clone(&gl))?;
+        Ok(Self { renderer, world })
     }
 
     pub fn resize(&mut self, cx: i32, cy: i32) {

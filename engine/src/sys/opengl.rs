@@ -269,6 +269,7 @@ pub type FnUniformMatrix2fv = unsafe extern "system" fn(GLint, GLsizei, GLboolea
 pub type FnUniformMatrix3fv = unsafe extern "system" fn(GLint, GLsizei, GLboolean, *const GLfloat);
 pub type FnUniformMatrix4fv = unsafe extern "system" fn(GLint, GLsizei, GLboolean, *const GLfloat);
 
+#[derive(Debug)]
 pub struct OpenGlFunctions {
     fnGetError: FnGetError,
     fnGetBooleanv: FnGetBooleanv,

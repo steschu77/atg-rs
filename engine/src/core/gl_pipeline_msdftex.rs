@@ -1,7 +1,8 @@
 use crate::core::gl_graphics;
-use crate::core::gl_pipeline::{GlBindings, GlPipeline, GlUniforms};
+use crate::core::gl_pipeline::{GlMaterial, GlMesh, GlPipeline, GlUniforms};
 use crate::error::Result;
 use crate::sys::opengl as gl;
+use crate::v2d::m4x4::M4x4;
 use crate::v2d::v2::V2;
 use std::rc::Rc;
 
@@ -13,6 +14,7 @@ pub struct Vertex {
 }
 
 // ----------------------------------------------------------------------------
+#[derive(Debug)]
 pub struct GlMSDFTexPipeline {
     pub gl: Rc<gl::OpenGlFunctions>,
     pub shader: gl::GLuint,
@@ -39,7 +41,7 @@ impl GlMSDFTexPipeline {
         })
     }
 
-    pub fn create_bindings(&self, vertices: &[Vertex]) -> Result<GlBindings> {
+    pub fn create_bindings(&self, vertices: &[Vertex]) -> Result<GlMesh> {
         let gl = &self.gl;
         let vao = gl_graphics::create_vertex_array(gl);
         let _vbo = unsafe {
@@ -62,7 +64,7 @@ impl GlMSDFTexPipeline {
             gl.VertexAttribPointer(1, 2, gl::FLOAT, gl::FALSE, stride, tex_ofs as *const _);
         }
 
-        Ok(GlBindings {
+        Ok(GlMesh {
             vao_vertices: vec![vao],
             vbo_indices: 0,
             num_indices: 0,
@@ -73,13 +75,25 @@ impl GlMSDFTexPipeline {
 
 // ----------------------------------------------------------------------------
 impl GlPipeline for GlMSDFTexPipeline {
-    fn render(&self, bindings: &GlBindings, uniforms: &GlUniforms) -> Result<()> {
+    fn render(
+        &self,
+        bindings: &GlMesh,
+        material: &GlMaterial,
+        _uniforms: &GlUniforms,
+    ) -> Result<()> {
         let gl = &self.gl;
+        let identity = M4x4::identity();
+        let texture = match material {
+            GlMaterial::Texture { texture } => *texture,
+            _ => 0,
+        };
         unsafe {
             gl.UseProgram(self.shader);
+            gl.ActiveTexture(gl::TEXTURE0);
+            gl.BindTexture(gl::TEXTURE_2D, texture);
             gl.BindVertexArray(bindings.vao_vertices[0]);
-            gl.UniformMatrix4fv(self.uid_model, 1, gl::FALSE, uniforms.model.as_ptr());
-            gl.UniformMatrix4fv(self.uid_view, 1, gl::FALSE, uniforms.view.as_ptr());
+            gl.UniformMatrix4fv(self.uid_model, 1, gl::FALSE, identity.as_ptr());
+            gl.UniformMatrix4fv(self.uid_view, 1, gl::FALSE, identity.as_ptr());
             gl.DrawArrays(gl::TRIANGLES, 0, bindings.num_vertices);
         }
         Ok(())
@@ -125,3 +139,16 @@ void main() {
     mediump float alpha = smoothstep(-0.1, 0.1, sig_dist);
     FragColor = vec4(alpha, alpha, alpha, alpha);
 }"#;
+
+// ------------------------------------------------------------------------
+pub fn add_plane_quad(verts: &mut Vec<Vertex>, uv: V2, u: f32, v: f32, xy: V2, x: f32, y: f32) {
+    #[rustfmt::skip]
+    verts.extend_from_slice(&[
+        Vertex { pos: xy + V2::new([0.0, 0.0]), tex: uv + V2::new([0.0,   v]) },
+        Vertex { pos: xy + V2::new([  x, 0.0]), tex: uv + V2::new([  u,   v]) },
+        Vertex { pos: xy + V2::new([0.0,   y]), tex: uv + V2::new([0.0, 0.0]) },
+        Vertex { pos: xy + V2::new([0.0,   y]), tex: uv + V2::new([0.0, 0.0]) },
+        Vertex { pos: xy + V2::new([  x, 0.0]), tex: uv + V2::new([  u,   v]) },
+        Vertex { pos: xy + V2::new([  x,   y]), tex: uv + V2::new([  u, 0.0]) },
+    ]);
+}
