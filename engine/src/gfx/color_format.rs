@@ -1,4 +1,5 @@
 // ----------------------------------------------------------------------------
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorFormat {
     Y1,  // 1 bit Grayscale
     Y2,  // 2 bit Grayscale
@@ -24,6 +25,8 @@ pub enum ColorFormat {
     BGR8888, // 32 bit RGBA reversed with 8 bit for alpha, red, green and blue
     RGB0ggg, // 48 bit RGB with 16 bit for red, green and blue
     RGBgggg, // 64 bit RGBA with 16 bit for red, green and blue
+
+    YCbCr420, // 12 bit YCbCr 4:2:0
 }
 
 // ----------------------------------------------------------------------------
@@ -43,6 +46,7 @@ impl ColorFormat {
             ColorFormat::Y2 | ColorFormat::PAL2 => 2,
             ColorFormat::Y4 | ColorFormat::PAL4 => 4,
             ColorFormat::Y8 | ColorFormat::PAL8 => 8,
+            ColorFormat::YCbCr420 => 12,
             ColorFormat::RGB4444
             | ColorFormat::RGB0555
             | ColorFormat::RGB0565
