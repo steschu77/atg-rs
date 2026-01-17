@@ -16,6 +16,8 @@ pub enum Error {
     InvalidDisplay,
     InvalidVisualInfo,
     InvalidContext,
+    InvalidDate,
+    InvalidTime,
     UnderSubscribedTree,
     OverSubscribedTree,
     InvalidPng,
@@ -44,6 +46,7 @@ pub enum Error {
     OpenGl {
         code: u32,
     },
+    Logging,
     FileIo {
         err: std::io::ErrorKind,
     },
