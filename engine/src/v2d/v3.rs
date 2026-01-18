@@ -182,15 +182,15 @@ impl V3 {
     }
 
     // ------------------------------------------------------------------------
-    pub const fn dot(v0: &Self, v1: &Self) -> f32 {
-        v0.x0() * v1.x0() + v0.x1() * v1.x1() + v0.x2() * v1.x2()
+    pub const fn dot(&self, v1: &Self) -> f32 {
+        self.x0() * v1.x0() + self.x1() * v1.x1() + self.x2() * v1.x2()
     }
 
     // ------------------------------------------------------------------------
-    pub const fn cross(v0: &Self, v1: &Self) -> Self {
-        let x0 = v0.x1() * v1.x2() - v0.x2() * v1.x1();
-        let x1 = v0.x2() * v1.x0() - v0.x0() * v1.x2();
-        let x2 = v0.x0() * v1.x1() - v0.x1() * v1.x0();
+    pub const fn cross(&self, v1: &Self) -> Self {
+        let x0 = self.x1() * v1.x2() - self.x2() * v1.x1();
+        let x1 = self.x2() * v1.x0() - self.x0() * v1.x2();
+        let x2 = self.x0() * v1.x1() - self.x1() * v1.x0();
         V3::new([x0, x1, x2])
     }
 }
@@ -218,7 +218,7 @@ mod tests {
         assert_eq!(v0.norm(), V3::new([0.6, 0.8, 0.0]));
         assert_eq!(v0.abs(), V3::new([3.0, 4.0, 0.0]));
         assert_eq!(V3::distance(&v0, &v1), 3.0);
-        assert_eq!(V3::dot(&v0, &v1), 11.0);
-        assert_eq!(V3::cross(&v0, &v1), V3::new([4.0, -3.0, 2.0]));
+        assert_eq!(v0.dot(&v1), 11.0);
+        assert_eq!(v0.cross(&v1), V3::new([4.0, -3.0, 2.0]));
     }
 }
