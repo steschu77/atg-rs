@@ -10,6 +10,7 @@ pub struct Camera {
     position: V4,
     direction: V4,
     speed: V4,
+    target: V4,
 }
 
 // ----------------------------------------------------------------------------
@@ -19,6 +20,7 @@ impl Camera {
             position,
             direction,
             speed: V4::new([0.0, 0.0, 0.0, 0.0]),
+            target: V4::new([0.0, 0.0, -1.0, 0.0]),
         }
     }
 
@@ -37,14 +39,15 @@ impl Camera {
     }
 
     pub fn transform(&self) -> M4x4 {
-        let front = V4::new([0.0, 0.0, -1.0, 0.0]);
-        let front = affine4x4::rotate_x0(self.direction.x0()) * front;
-        let front = affine4x4::rotate_x1(self.direction.x1()) * front;
-        affine4x4::look_at(
-            self.position,
-            self.position + front,
-            V4::new([0.0, 1.0, 0.0, 0.0]),
-        )
+        let look_at = affine4x4::look_at(self.position, self.target, V4::new([0.0, 1.0, 0.0, 0.0]));
+
+        let rotate_x0 = affine4x4::rotate_x0(-self.direction.x0());
+        let rotate_x1 = affine4x4::rotate_x1(-self.direction.x1());
+        rotate_x0 * rotate_x1 * look_at
+    }
+
+    pub fn look_at(&mut self, target: V4) {
+        self.target = target;
     }
 
     fn input_events(&mut self, events: &[input::Event]) -> Result<()> {

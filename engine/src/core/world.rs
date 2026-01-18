@@ -17,6 +17,7 @@ pub struct World {
     player: Player,
     camera: Camera,
     debug: GameObject,
+    terrain_chunks: Vec<GameObject>,
     font: gl_font::Font,
     colored_pipe: Rc<GlColoredPipeline>,
     msdftex_pipe: Rc<GlMSDFTexPipeline>,
@@ -30,7 +31,7 @@ impl World {
     pub fn new(gl: Rc<gl::OpenGlFunctions>) -> Result<Self> {
         let terrain = Terrain::default();
         let player = Player::default();
-        let camera = Camera::new(V4::new([0.0, 2.0, 4.0, 1.0]), V4::new([0.0, 0.0, 0.0, 1.0]));
+        let camera = Camera::new(V4::new([0.0, 4.0, 4.0, 1.0]), V4::new([0.0, 0.0, 0.0, 1.0]));
         let t = std::time::Duration::ZERO;
 
         let font = gl_font::Font::load(&gl, Path::new("assets/fonts/roboto"))?;
@@ -42,7 +43,7 @@ impl World {
         let plane = colored_pipe.create_plane()?;
         let debug = create_text_mesh(&msdftex_pipe, &font, "Debug Text: Hello, World!")?;
 
-        let meshes = gl_pipeline::GlMeshes::new(&[cube, plane, debug]);
+        let mut meshes = gl_pipeline::GlMeshes::new(&[cube, plane, debug]);
         let materials = gl_pipeline::GlMaterials::new(&[
             GlMaterial::Texture {
                 texture: font.texture,
@@ -67,11 +68,27 @@ impl World {
             ..Default::default()
         };
 
+        let mut terrain_chunks = Vec::new();
+        let chunk = terrain.create_chunk_mesh(&colored_pipe, 0, 0)?;
+        let chunk_mesh_id = meshes.insert_mesh(chunk);
+        terrain_chunks.push(GameObject {
+            name: String::from("terrain_chunk_0_0"),
+            transform: Transform {
+                position: V4::new([1.0, 0.0, 0.0, 1.0]),
+                rotation: V4::default(),
+            },
+            pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
+            mesh_id: chunk_mesh_id,
+            material_id: 0,
+            ..Default::default()
+        });
+
         Ok(World {
             terrain,
             camera,
             player,
             debug,
+            terrain_chunks,
             font,
             colored_pipe: Rc::clone(&colored_pipe),
             msdftex_pipe: Rc::clone(&msdftex_pipe),
@@ -92,11 +109,15 @@ impl World {
         self.terrain.update(&V4::default(), &V4::default())?;
         self.camera.update(dt, events)?;
         self.player.update(dt, state)?;
+        self.debug.transform.position =
+            self.player.game_object.transform.position + V4::new([0.0, 1.0, 0.0, 0.0]);
+        self.camera
+            .look_at(self.player.game_object.transform.position);
         Ok(())
     }
 
     pub fn objects(&self) -> Vec<GameObject> {
-        let mut objects = self.terrain.visible_chunks();
+        let mut objects = self.terrain_chunks.clone();
         objects.push(self.player.game_object.clone());
         objects.push(self.debug.clone());
         objects
