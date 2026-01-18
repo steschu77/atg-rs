@@ -32,7 +32,6 @@ jobs:
 
   fmt:
     name: Format check
-    needs: build
     runs-on: ubuntu-latest
 
     steps:
