@@ -85,7 +85,7 @@ impl Renderer {
             projection,
             camera,
             mat_id: 0,
-            light_pos: V3::new([2.0, 2.0, 2.0]),
+            light_pos: V3::new([2.0, 5.0, 2.0]),
             view_pos: cam_pos.into(),
             light_color: V3::new([1.0, 0.5, 1.0]),
             object_color: V3::new([0.5, 1.0, 1.0]),

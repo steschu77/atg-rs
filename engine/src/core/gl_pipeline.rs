@@ -5,18 +5,18 @@ use crate::v2d::{m4x4::M4x4, v3::V3};
 // ----------------------------------------------------------------------------
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GlPipelineType {
-    RGBATex = 0,
+    Colored = 0,
     MSDFTex = 1,
-    Colored = 2,
+    RGBATex = 2,
 }
 
 // ----------------------------------------------------------------------------
 impl From<GlPipelineType> for usize {
     fn from(p: GlPipelineType) -> Self {
         match p {
-            GlPipelineType::RGBATex => 0,
+            GlPipelineType::Colored => 0,
             GlPipelineType::MSDFTex => 1,
-            GlPipelineType::Colored => 2,
+            GlPipelineType::RGBATex => 2,
         }
     }
 }
