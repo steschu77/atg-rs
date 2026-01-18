@@ -2,7 +2,6 @@ use crate::core::gl_graphics;
 use crate::core::gl_pipeline::{GlMaterial, GlMesh, GlPipeline, GlUniforms};
 use crate::error::Result;
 use crate::sys::opengl as gl;
-use crate::v2d::m4x4::M4x4;
 use crate::v2d::v2::V2;
 use std::rc::Rc;
 
@@ -79,10 +78,9 @@ impl GlPipeline for GlMSDFTexPipeline {
         &self,
         bindings: &GlMesh,
         material: &GlMaterial,
-        _uniforms: &GlUniforms,
+        uniforms: &GlUniforms,
     ) -> Result<()> {
         let gl = &self.gl;
-        let identity = M4x4::identity();
         let texture = match material {
             GlMaterial::Texture { texture } => *texture,
             _ => 0,
@@ -92,8 +90,8 @@ impl GlPipeline for GlMSDFTexPipeline {
             gl.ActiveTexture(gl::TEXTURE0);
             gl.BindTexture(gl::TEXTURE_2D, texture);
             gl.BindVertexArray(bindings.vao_vertices[0]);
-            gl.UniformMatrix4fv(self.uid_model, 1, gl::FALSE, identity.as_ptr());
-            gl.UniformMatrix4fv(self.uid_view, 1, gl::FALSE, identity.as_ptr());
+            gl.UniformMatrix4fv(self.uid_model, 1, gl::FALSE, uniforms.model.as_ptr());
+            gl.UniformMatrix4fv(self.uid_view, 1, gl::FALSE, uniforms.camera.as_ptr());
             gl.DrawArrays(gl::TRIANGLES, 0, bindings.num_vertices);
         }
         Ok(())
@@ -121,7 +119,11 @@ layout (location = 1) in vec2 a_tex;
 out vec2 v_tex;
 
 void main() {
-    gl_Position = camera * model * vec4(a_pos, 0.0, 1.0);
+    // gl_Position = camera * model * vec4(a_pos, 0.0, 1.0);
+    vec4 world_pos = vec4(model[3][0], model[3][1], model[3][2], model[3][3]);
+    vec4 view_pos = camera * world_pos;
+    view_pos.xy += a_pos.xy * 1.01;
+    gl_Position = view_pos;
     v_tex = a_tex;
 }"#;
 
