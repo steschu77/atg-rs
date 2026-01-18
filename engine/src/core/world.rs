@@ -41,9 +41,8 @@ impl World {
 
         let cube = colored_pipe.create_cube()?;
         let plane = colored_pipe.create_plane()?;
-        let debug = create_text_mesh(&msdftex_pipe, &font, "Debug Text: Hello, World!")?;
 
-        let mut meshes = gl_pipeline::GlMeshes::new(&[cube, plane, debug]);
+        let mut meshes = gl_pipeline::GlMeshes::new(&[cube, plane]);
         let materials = gl_pipeline::GlMaterials::new(&[
             GlMaterial::Texture {
                 texture: font.texture,
@@ -56,6 +55,8 @@ impl World {
             },
         ]);
 
+        let debug = create_text_mesh(&msdftex_pipe, &font, "Debug Text: Hello, World!")?;
+        let debug_mesh_id = meshes.insert_mesh(debug);
         let debug = GameObject {
             name: String::from("debug"),
             transform: Transform {
@@ -63,7 +64,7 @@ impl World {
                 rotation: V4::default(),
             },
             pipe_id: gl_pipeline::GlPipelineType::MSDFTex.into(),
-            mesh_id: 2,
+            mesh_id: debug_mesh_id,
             material_id: 0,
             ..Default::default()
         };
@@ -111,8 +112,15 @@ impl World {
         self.player.update(dt, state)?;
         self.debug.transform.position =
             self.player.game_object.transform.position + V4::new([0.0, 1.0, 0.0, 0.0]);
+
+        let player_forward = V4::new([
+            self.player.rotation.x_axis().x0(),
+            0.0,
+            self.player.rotation.x_axis().x1(),
+            0.0,
+        ]);
         self.camera
-            .look_at(self.player.game_object.transform.position);
+            .look_at(self.player.game_object.transform.position, player_forward);
         Ok(())
     }
 

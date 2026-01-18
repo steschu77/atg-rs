@@ -1,16 +1,18 @@
 use crate::core::input;
 use crate::error::Result;
-use crate::v2d::affine4x4;
-use crate::v2d::m4x4::M4x4;
-use crate::v2d::v4::V4;
+use crate::v2d::{affine4x4, m4x4::M4x4, v4::V4};
 
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
 pub struct Camera {
     position: V4,
     direction: V4,
-    speed: V4,
+    velocity: V4,
     target: V4,
+    target_forward: V4,
+    distance: f32,
+    stiffness: f32,
+    damping: f32,
 }
 
 // ----------------------------------------------------------------------------
@@ -19,35 +21,55 @@ impl Camera {
         Self {
             position,
             direction,
-            speed: V4::new([0.0, 0.0, 0.0, 0.0]),
+            velocity: V4::new([0.0, 0.0, 0.0, 0.0]),
             target: V4::new([0.0, 0.0, -1.0, 0.0]),
+            target_forward: V4::new([0.0, 0.0, -1.0, 0.0]),
+            distance: 4.0,
+            stiffness: 50.0,
+            damping: 10.0,
         }
-    }
-
-    pub fn update(&mut self, dt: &std::time::Duration, events: &input::Events) -> Result<()> {
-        self.position += self.speed * dt.as_secs_f32();
-        self.input_events(events)?;
-        Ok(())
     }
 
     pub fn position(&self) -> V4 {
         self.position
     }
 
-    pub fn direction(&self) -> V4 {
-        self.direction
+    pub fn update(&mut self, dt: &std::time::Duration, events: &input::Events) -> Result<()> {
+        self.input_events(events)?;
+
+        let dt = dt.as_secs_f32();
+        let desired = self.desired_position();
+
+        let displacement = self.position - desired;
+
+        let accel = -self.stiffness * displacement - self.damping * self.velocity;
+
+        self.velocity += accel * dt;
+        self.position += self.velocity * dt;
+        Ok(())
     }
 
     pub fn transform(&self) -> M4x4 {
-        let look_at = affine4x4::look_at(self.position, self.target, V4::new([0.0, 1.0, 0.0, 0.0]));
-
-        let rotate_x0 = affine4x4::rotate_x0(-self.direction.x0());
-        let rotate_x1 = affine4x4::rotate_x1(-self.direction.x1());
-        rotate_x0 * rotate_x1 * look_at
+        let pitch = affine4x4::rotate_x0(-self.direction.x0());
+        let yaw = affine4x4::rotate_x1(self.direction.x1());
+        let forward = self.target - self.position;
+        let forward = yaw * forward;
+        let look_at = affine4x4::look_at(
+            self.position,
+            self.position + forward,
+            V4::new([0.0, 1.0, 0.0, 0.0]),
+        );
+        pitch * look_at
     }
 
-    pub fn look_at(&mut self, target: V4) {
+    pub fn look_at(&mut self, target: V4, forward: V4) {
         self.target = target;
+        self.target_forward = forward;
+    }
+
+    fn desired_position(&self) -> V4 {
+        let target_offset = -self.target_forward.norm() * self.distance;
+        self.target + target_offset + V4::new([0.0, 2.0, 0.0, 0.0])
     }
 
     fn input_events(&mut self, events: &[input::Event]) -> Result<()> {
@@ -56,7 +78,7 @@ impl Camera {
             #[allow(clippy::single_match)]
             match event {
                 input::Event::MouseMove { x, y } => {
-                    self.pan(*x as f32 * 0.01);
+                    self.yaw(*x as f32 * 0.01);
                     self.tilt(*y as f32 * 0.01);
                 }
                 _ => {}
@@ -86,7 +108,7 @@ impl Camera {
         self.move_by(V4::new([distance, 0.0, 0.0, 0.0]));
     }
 
-    pub fn pan(&mut self, x: f32) {
+    pub fn yaw(&mut self, x: f32) {
         self.direction += V4::new([0.0, x, 0.0, 0.0]);
     }
 
