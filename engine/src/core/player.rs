@@ -1,3 +1,4 @@
+use crate::core::IComponent;
 use crate::core::game_object::{GameObject, Transform};
 use crate::core::input;
 use crate::error::Result;
@@ -13,29 +14,8 @@ pub struct Player {
 }
 
 // ----------------------------------------------------------------------------
-impl Player {
-    // ------------------------------------------------------------------------
-    pub fn new() -> Self {
-        Self {
-            game_object: GameObject {
-                name: String::from("player"),
-                transform: Transform {
-                    position: V4::new([0.0, 0.0, 0.0, 1.0]),
-                    rotation: V4::default(),
-                },
-                pipe_id: 0,
-                mesh_id: 0,
-                material_id: 0,
-                ..Default::default()
-            },
-            velocity: V2::default(),
-            rotation: R2::default(),
-            speed: 5.0,
-        }
-    }
-
-    // ------------------------------------------------------------------------
-    pub fn update(&mut self, dt: &std::time::Duration, input: &input::State) -> Result<()> {
+impl IComponent for Player {
+    fn update(&mut self, dt: &std::time::Duration, input: &input::State) -> Result<()> {
         const TURN_SPEED: f32 = 1.5;
         if input.is_pressed(input::Key::TurnLeft) {
             self.rotation -= TURN_SPEED * dt.as_secs_f32();
@@ -68,5 +48,27 @@ impl Player {
 impl Default for Player {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl Player {
+    pub fn new() -> Self {
+        Self {
+            game_object: GameObject {
+                name: String::from("player"),
+                transform: Transform {
+                    position: V4::new([0.0, 0.0, 0.0, 1.0]),
+                    rotation: V4::default(),
+                },
+                pipe_id: 0,
+                mesh_id: 0,
+                material_id: 0,
+                ..Default::default()
+            },
+            velocity: V2::default(),
+            rotation: R2::default(),
+            speed: 5.0,
+        }
     }
 }

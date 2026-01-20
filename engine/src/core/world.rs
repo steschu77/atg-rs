@@ -1,3 +1,4 @@
+use crate::core::IComponent;
 use crate::core::game_object::{GameObject, Transform};
 use crate::core::gl_font;
 use crate::core::gl_pipeline::{self, GlMaterial};
@@ -100,16 +101,17 @@ impl World {
         })
     }
 
-    pub fn update(
-        &mut self,
-        dt: &std::time::Duration,
-        events: &input::Events,
-        state: &input::State,
-    ) -> Result<()> {
+    pub fn input(&mut self, events: &input::Events) -> Result<()> {
+        self.camera.input(events)?;
+        Ok(())
+    }
+
+    pub fn update(&mut self, dt: &std::time::Duration, state: &input::State) -> Result<()> {
         self.t += *dt;
         self.terrain.update(&V4::default(), &V4::default())?;
-        self.camera.update(dt, events)?;
+        self.camera.update(dt, state)?;
         self.player.update(dt, state)?;
+
         self.debug.transform.position =
             self.player.game_object.transform.position + V4::new([0.0, 1.0, 0.0, 0.0]);
 
@@ -119,6 +121,7 @@ impl World {
             self.player.rotation.x_axis().x1(),
             0.0,
         ]);
+
         self.camera
             .look_at(self.player.game_object.transform.position, player_forward);
         Ok(())
