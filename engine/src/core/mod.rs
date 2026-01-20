@@ -2,6 +2,7 @@ use crate::error::Result;
 
 pub mod camera;
 pub mod clock;
+pub mod component;
 pub mod game_loop;
 pub mod game_object;
 pub mod gl_font;
@@ -21,11 +22,6 @@ pub mod world;
 pub trait IClock {
     fn now(&self) -> std::time::Duration;
     fn sleep(&self, dt: std::time::Duration) -> std::time::Duration;
-}
-
-// ----------------------------------------------------------------------------
-pub trait IComponent {
-    fn update(&mut self, dt: &std::time::Duration, state: &input::State) -> Result<()>;
 }
 
 // ----------------------------------------------------------------------------

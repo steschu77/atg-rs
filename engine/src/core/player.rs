@@ -1,4 +1,4 @@
-use crate::core::IComponent;
+use crate::core::component::{Component, Context};
 use crate::core::game_object::{GameObject, Transform};
 use crate::core::input;
 use crate::error::Result;
@@ -14,27 +14,35 @@ pub struct Player {
 }
 
 // ----------------------------------------------------------------------------
-impl IComponent for Player {
-    fn update(&mut self, dt: &std::time::Duration, input: &input::State) -> Result<()> {
+impl Component for Player {
+    fn update(&mut self, ctx: &Context) -> Result<()> {
         const TURN_SPEED: f32 = 1.5;
-        if input.is_pressed(input::Key::TurnLeft) {
-            self.rotation -= TURN_SPEED * dt.as_secs_f32();
+        let dt = ctx.dt_secs();
+
+        if ctx.state.is_pressed(input::Key::TurnLeft) {
+            self.rotation -= TURN_SPEED * dt;
         }
-        if input.is_pressed(input::Key::TurnRight) {
-            self.rotation += TURN_SPEED * dt.as_secs_f32();
+        if ctx.state.is_pressed(input::Key::TurnRight) {
+            self.rotation += TURN_SPEED * dt;
         }
 
-        if input.is_pressed(input::Key::MoveForward) {
+        if ctx.state.is_pressed(input::Key::MoveForward) {
             let direction = self.rotation.x_axis();
             self.velocity = direction * self.speed;
         } else {
             self.velocity = V2::default();
         }
 
-        let dt = dt.as_secs_f32();
+        let position = V2::new([
+            self.game_object.transform.position.x0(),
+            self.game_object.transform.position.x2(),
+        ]);
         let displacement = self.velocity * dt;
-        let displacement = V4::new([displacement.x0(), 0.0, displacement.x1(), 0.0]);
-        self.game_object.transform.position += displacement;
+        let position = position + displacement;
+
+        let height = ctx.terrain.height_at(position.x0(), position.x1());
+
+        self.game_object.transform.position = V4::new([position.x0(), height, position.x1(), 1.0]);
 
         let rotation = self.rotation.get();
         let rotation = V4::new([0.0, rotation, 0.0, 0.0]);
