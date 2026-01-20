@@ -1,7 +1,7 @@
 use crate::core::gl_pipeline::GlMesh;
 use crate::core::gl_pipeline_colored::{GlColoredPipeline, Vertex};
 use crate::error::Result;
-use crate::v2d::{v3::V3, v4::V4};
+use crate::v2d::v3::V3;
 
 const TERRAIN_RESOLUTION: f32 = 1.0;
 const TERRAIN_RESOLUTION_INV: f32 = 1.0 / TERRAIN_RESOLUTION;
@@ -131,10 +131,6 @@ impl Terrain {
         let h0 = h00 * (1.0 - fx) + h10 * fx;
         let h1 = h01 * (1.0 - fx) + h11 * fx;
         h0 * (1.0 - fz) + h1 * fz
-    }
-
-    pub fn update(&mut self, _cam_pos: &V4, _cam_dir: &V4) -> Result<()> {
-        Ok(())
     }
 }
 

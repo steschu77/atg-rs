@@ -1,6 +1,7 @@
-use crate::core::{IComponent, input};
+use crate::core::component::{Component, Context};
+use crate::core::input;
 use crate::error::Result;
-use crate::v2d::{affine4x4, m4x4::M4x4, v4::V4};
+use crate::v2d::{affine4x4, m4x4::M4x4, v2::V2, v4::V4};
 
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
@@ -16,17 +17,24 @@ pub struct Camera {
 }
 
 // ----------------------------------------------------------------------------
-impl IComponent for Camera {
-    fn update(&mut self, dt: &std::time::Duration, _state: &input::State) -> Result<()> {
-        let dt = dt.as_secs_f32();
+impl Component for Camera {
+    fn update(&mut self, ctx: &Context) -> Result<()> {
+        let dt = ctx.dt_secs();
         let desired = self.desired_position();
 
-        let displacement = self.position - desired;
+        let position = V2::new([desired.x0(), desired.x2()]);
+        let height = ctx.terrain.height_at(position.x0(), position.x1());
+        let target_x1 = desired.x1().max(height + 1.0);
+
+        let target = V4::new([position.x0(), target_x1, position.x1(), 0.0]);
+
+        let displacement = self.position - target;
 
         let accel = -self.stiffness * displacement - self.damping * self.velocity;
 
         self.velocity += accel * dt;
         self.position += self.velocity * dt;
+
         Ok(())
     }
 }
@@ -85,7 +93,7 @@ impl Camera {
 
     fn desired_position(&self) -> V4 {
         let target_offset = -self.target_forward.norm() * self.distance;
-        self.target + target_offset + V4::new([0.0, 2.0, 0.0, 0.0])
+        self.target + target_offset + V4::new([0.0, 5.0, 0.0, 0.0])
     }
 
     fn move_by(&mut self, d: V4) {

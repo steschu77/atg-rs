@@ -1,4 +1,4 @@
-use crate::core::IComponent;
+use crate::core::component::{Component, Context};
 use crate::core::game_object::{GameObject, Transform};
 use crate::core::gl_font;
 use crate::core::gl_pipeline::{self, GlMaterial};
@@ -108,9 +108,14 @@ impl World {
 
     pub fn update(&mut self, dt: &std::time::Duration, state: &input::State) -> Result<()> {
         self.t += *dt;
-        self.terrain.update(&V4::default(), &V4::default())?;
-        self.camera.update(dt, state)?;
-        self.player.update(dt, state)?;
+        let ctx = Context {
+            dt: *dt,
+            state,
+            terrain: &self.terrain,
+        };
+
+        self.camera.update(&ctx)?;
+        self.player.update(&ctx)?;
 
         self.debug.transform.position =
             self.player.game_object.transform.position + V4::new([0.0, 1.0, 0.0, 0.0]);
