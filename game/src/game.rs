@@ -11,14 +11,13 @@ pub struct Game {
 }
 
 impl IGame for Game {
-    fn update(
-        &mut self,
-        dt: &std::time::Duration,
-        events: &input::Events,
-        state: &input::State,
-    ) -> Result<()> {
-        self.input_events(events)?;
-        self.world.update(dt, events, state)?;
+    fn input(&mut self, events: &input::Events) -> Result<()> {
+        self.world.input(events)?;
+        self.input_events(events)
+    }
+
+    fn update(&mut self, dt: &std::time::Duration, state: &input::State) -> Result<()> {
+        self.world.update(dt, state)?;
         Ok(())
     }
 
@@ -40,7 +39,7 @@ impl Game {
         self.renderer.resize(cx, cy);
     }
 
-    fn input_events(&mut self, events: &[input::Event]) -> Result<()> {
+    fn input_events(&mut self, events: &input::Events) -> Result<()> {
         // Process input events, e.g., keyboard, mouse, etc.
         for event in events {
             match event {

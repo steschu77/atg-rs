@@ -1,4 +1,4 @@
-use crate::core::input;
+use crate::core::{IComponent, input};
 use crate::error::Result;
 use crate::v2d::{affine4x4, m4x4::M4x4, v4::V4};
 
@@ -13,6 +13,22 @@ pub struct Camera {
     distance: f32,
     stiffness: f32,
     damping: f32,
+}
+
+// ----------------------------------------------------------------------------
+impl IComponent for Camera {
+    fn update(&mut self, dt: &std::time::Duration, _state: &input::State) -> Result<()> {
+        let dt = dt.as_secs_f32();
+        let desired = self.desired_position();
+
+        let displacement = self.position - desired;
+
+        let accel = -self.stiffness * displacement - self.damping * self.velocity;
+
+        self.velocity += accel * dt;
+        self.position += self.velocity * dt;
+        Ok(())
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -34,18 +50,18 @@ impl Camera {
         self.position
     }
 
-    pub fn update(&mut self, dt: &std::time::Duration, events: &input::Events) -> Result<()> {
-        self.input_events(events)?;
-
-        let dt = dt.as_secs_f32();
-        let desired = self.desired_position();
-
-        let displacement = self.position - desired;
-
-        let accel = -self.stiffness * displacement - self.damping * self.velocity;
-
-        self.velocity += accel * dt;
-        self.position += self.velocity * dt;
+    pub fn input(&mut self, events: &input::Events) -> Result<()> {
+        // Process input events, e.g., keyboard, mouse, etc.
+        for event in events {
+            #[allow(clippy::single_match)]
+            match event {
+                input::Event::MouseMove { x, y } => {
+                    self.yaw(*x as f32 * 0.01);
+                    self.tilt(*y as f32 * 0.01);
+                }
+                _ => {}
+            }
+        }
         Ok(())
     }
 
@@ -70,21 +86,6 @@ impl Camera {
     fn desired_position(&self) -> V4 {
         let target_offset = -self.target_forward.norm() * self.distance;
         self.target + target_offset + V4::new([0.0, 2.0, 0.0, 0.0])
-    }
-
-    fn input_events(&mut self, events: &[input::Event]) -> Result<()> {
-        // Process input events, e.g., keyboard, mouse, etc.
-        for event in events {
-            #[allow(clippy::single_match)]
-            match event {
-                input::Event::MouseMove { x, y } => {
-                    self.yaw(*x as f32 * 0.01);
-                    self.tilt(*y as f32 * 0.01);
-                }
-                _ => {}
-            }
-        }
-        Ok(())
     }
 
     fn move_by(&mut self, d: V4) {

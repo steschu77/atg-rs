@@ -24,13 +24,14 @@ pub trait IClock {
 }
 
 // ----------------------------------------------------------------------------
+pub trait IComponent {
+    fn update(&mut self, dt: &std::time::Duration, state: &input::State) -> Result<()>;
+}
+
+// ----------------------------------------------------------------------------
 pub trait IGame {
-    fn update(
-        &mut self,
-        t_now: &std::time::Duration,
-        events: &input::Events,
-        state: &input::State,
-    ) -> Result<()>;
+    fn input(&mut self, events: &input::Events) -> Result<()>;
+    fn update(&mut self, dt: &std::time::Duration, state: &input::State) -> Result<()>;
     fn render(&mut self) -> Result<()>;
 }
 
@@ -93,12 +94,11 @@ pub mod tests {
     }
 
     impl IGame for MockGame<'_> {
-        fn update(
-            &mut self,
-            _t_now: &std::time::Duration,
-            _events: &input::Events,
-            _state: &input::State,
-        ) -> Result<()> {
+        fn input(&mut self, _events: &input::Events) -> Result<()> {
+            Ok(())
+        }
+
+        fn update(&mut self, _dt: &std::time::Duration, _state: &input::State) -> Result<()> {
             self.update_count += 1;
             self.clock.advance(self.t_update);
             Ok(())
@@ -134,17 +134,14 @@ pub mod tests {
 
     #[test]
     fn test_game() {
-        let mut input = input::Input::new();
+        let input = input::Input::new();
         let clock = MockClock::default();
         let mut game = MockGame::new(
             &clock,
             std::time::Duration::from_millis(10),
             std::time::Duration::from_millis(20),
         );
-        assert_eq!(
-            game.update(&clock.now(), &input.take_events(), &input.take_state()),
-            Ok(())
-        );
+        assert_eq!(game.update(&clock.now(), &input.take_state()), Ok(()));
         assert_eq!(game.render(), Ok(()));
         assert_eq!(game.loops().len(), 1);
     }
