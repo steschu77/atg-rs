@@ -4,7 +4,6 @@ pub mod camera;
 pub mod clock;
 pub mod component;
 pub mod game_loop;
-pub mod game_object;
 pub mod gl_font;
 pub mod gl_graphics;
 pub mod gl_pipeline;
@@ -33,7 +32,12 @@ pub trait IGame {
 
 // ----------------------------------------------------------------------------
 pub trait IRenderer {
-    fn render(&self, world: &world::World) -> Result<()>;
+    fn render(
+        &self,
+        camera: &camera::Camera,
+        objects: Vec<gl_renderer::RenderObject>,
+        context: &gl_renderer::RenderContext,
+    ) -> Result<()>;
     fn resize(&self, cx: i32, cy: i32);
 }
 

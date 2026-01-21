@@ -1,5 +1,5 @@
 use crate::core::component::{Component, Context};
-use crate::core::game_object::{GameObject, Transform};
+use crate::core::gl_renderer::{RenderContext, RenderObject, Transform};
 use crate::core::input;
 use crate::error::Result;
 use crate::v2d::{r2::R2, v2::V2, v4::V4};
@@ -7,7 +7,7 @@ use crate::v2d::{r2::R2, v2::V2, v4::V4};
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
 pub struct Player {
-    pub game_object: GameObject,
+    pub game_object: RenderObject,
     pub velocity: V2,
     pub rotation: R2,
     pub speed: f32,
@@ -53,17 +53,10 @@ impl Component for Player {
 }
 
 // ----------------------------------------------------------------------------
-impl Default for Player {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-// ----------------------------------------------------------------------------
 impl Player {
-    pub fn new() -> Self {
+    pub fn new(_context: &mut RenderContext) -> Self {
         Self {
-            game_object: GameObject {
+            game_object: RenderObject {
                 name: String::from("player"),
                 transform: Transform {
                     position: V4::new([0.0, 0.0, 0.0, 1.0]),

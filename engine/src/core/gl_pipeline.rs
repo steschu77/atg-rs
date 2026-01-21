@@ -28,6 +28,8 @@ pub struct GlMesh {
     pub vbo_indices: gl::GLuint,
     pub num_indices: gl::GLsizei,
     pub num_vertices: gl::GLsizei,
+    pub primitive_type: gl::GLenum,
+    pub has_indices: bool,
 }
 
 // ----------------------------------------------------------------------------

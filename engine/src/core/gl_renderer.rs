@@ -1,40 +1,17 @@
+use crate::core::IRenderer;
+use crate::core::camera::Camera;
 use crate::core::gl_graphics::{
     create_framebuffer, create_program, create_texture_vao, print_opengl_info,
 };
-use crate::core::world::World;
-use crate::core::{IRenderer, gl_pipeline};
+use crate::core::gl_pipeline::{self, GlMaterial};
+use crate::core::gl_pipeline_colored::{self, GlColoredPipeline};
+use crate::core::gl_pipeline_msdftex::{self, GlMSDFTexPipeline};
 use crate::error::Result;
 use crate::sys::opengl as gl;
-use crate::v2d::affine4x4;
-use crate::v2d::{m4x4::M4x4, v3::V3};
+use crate::v2d::{affine4x4, m4x4::M4x4, v3::V3, v4::V4};
 use std::rc::Rc;
 
-const VS_TEXTURE: &str = r#"
-#version 330 core
-layout (location = 0) in vec2 aPosition;
-layout (location = 1) in vec2 aTexCoord;
-out vec2 TexCoord;
-void main() {
-    gl_Position = vec4(aPosition, 0.0, 1.0);
-    TexCoord = aTexCoord;
-}"#;
-
-const FS_TEXTURE: &str = r#"
-#version 330 core
-in vec2 TexCoord;
-out vec4 FragColor;
-uniform sampler2D texture1;
-float rand(vec2 n) {
-    return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
-}
-void main() {
-    float n0 = rand( TexCoord.st) - 0.5;
-    float n1 = rand(-TexCoord.ts) - 0.5;
-    //vec2 noise = 0.05 * vec2(n0*n0, n1*n1);
-    vec2 noise = vec2(0.0);
-    FragColor = texture(texture1, TexCoord.st + noise);
-}"#;
-
+// ----------------------------------------------------------------------------
 pub struct Renderer {
     gl: Rc<gl::OpenGlFunctions>,
     texture_vao: gl::GLuint,
@@ -44,6 +21,7 @@ pub struct Renderer {
     depth_tex: gl::GLuint,
 }
 
+// ----------------------------------------------------------------------------
 impl Renderer {
     pub fn new(gl: Rc<gl::OpenGlFunctions>) -> Result<Self> {
         print_opengl_info(&gl);
@@ -62,10 +40,14 @@ impl Renderer {
         })
     }
 
-    fn render_1st_pass(&self, world: &World) -> Result<()> {
+    fn render_1st_pass(
+        &self,
+        camera: &Camera,
+        objects: Vec<RenderObject>,
+        context: &RenderContext,
+    ) -> Result<()> {
         let gl = &self.gl;
 
-        let camera = world.camera();
         let view = camera.transform();
         let cam_pos = camera.position();
         let projection = affine4x4::perspective(45.0, 800.0 / 600.0, 0.1, 100.0);
@@ -91,10 +73,9 @@ impl Renderer {
             object_color: V3::new([0.5, 1.0, 1.0]),
         };
 
-        let objects = world.objects();
-        let meshes = world.meshes();
-        let materials = world.materials();
-        let pipes = world.pipes();
+        let meshes = context.meshes();
+        let materials = context.materials();
+        let pipes = context.pipes();
 
         for object in objects {
             let mesh = meshes.get(object.mesh_id);
@@ -128,9 +109,15 @@ impl Renderer {
     }
 }
 
+// ----------------------------------------------------------------------------
 impl IRenderer for Renderer {
-    fn render(&self, world: &World) -> Result<()> {
-        self.render_1st_pass(world)?;
+    fn render(
+        &self,
+        camera: &Camera,
+        objects: Vec<RenderObject>,
+        context: &RenderContext,
+    ) -> Result<()> {
+        self.render_1st_pass(camera, objects, context)?;
         self.render_2nd_pass()?;
         Ok(())
     }
@@ -140,3 +127,132 @@ impl IRenderer for Renderer {
         unsafe { self.gl.Viewport(0, 0, cx, cy) };
     }
 }
+
+// ----------------------------------------------------------------------------
+pub struct RenderContext {
+    colored_pipe: Rc<GlColoredPipeline>,
+    msdftex_pipe: Rc<GlMSDFTexPipeline>,
+    meshes: gl_pipeline::GlMeshes,
+    materials: gl_pipeline::GlMaterials,
+    pipes: Vec<Rc<dyn gl_pipeline::GlPipeline>>,
+}
+
+// ----------------------------------------------------------------------------
+impl RenderContext {
+    pub fn new(gl: Rc<gl::OpenGlFunctions>) -> Result<Self> {
+        let colored_pipe = Rc::new(GlColoredPipeline::new(Rc::clone(&gl))?);
+        let msdftex_pipe = Rc::new(GlMSDFTexPipeline::new(Rc::clone(&gl))?);
+
+        let cube = colored_pipe.create_cube()?;
+        let plane = colored_pipe.create_plane()?;
+
+        let meshes = gl_pipeline::GlMeshes::new(&[cube, plane]);
+        let materials = gl_pipeline::GlMaterials::new(&[]);
+
+        Ok(RenderContext {
+            colored_pipe: Rc::clone(&colored_pipe),
+            msdftex_pipe: Rc::clone(&msdftex_pipe),
+            meshes,
+            materials,
+            pipes: vec![colored_pipe, msdftex_pipe],
+        })
+    }
+
+    pub fn insert_material(&mut self, material: GlMaterial) -> usize {
+        self.materials.insert_material(material)
+    }
+
+    pub fn create_colored_mesh(
+        &mut self,
+        vertices: &[gl_pipeline_colored::Vertex],
+        indices: &[u32],
+    ) -> Result<usize> {
+        let mesh = self.colored_pipe.create_mesh(vertices, indices)?;
+        Ok(self.meshes.insert_mesh(mesh))
+    }
+
+    pub fn create_msdftex_mesh(
+        &mut self,
+        vertices: &[gl_pipeline_msdftex::Vertex],
+    ) -> Result<usize> {
+        let mesh = self.msdftex_pipe.create_mesh(vertices)?;
+        Ok(self.meshes.insert_mesh(mesh))
+    }
+
+    pub fn create_cube(&mut self) -> Result<usize> {
+        let (verts, indices) = gl_pipeline_colored::create_cube_mesh();
+        let mesh = self.colored_pipe.create_mesh(&verts, &indices)?;
+        Ok(self.meshes.insert_mesh(mesh))
+    }
+
+    pub fn create_plane(&mut self) -> Result<usize> {
+        let (verts, indices) = gl_pipeline_colored::create_plane_mesh();
+        let mesh = self.colored_pipe.create_mesh(&verts, &indices)?;
+        Ok(self.meshes.insert_mesh(mesh))
+    }
+
+    pub fn pipes(&self) -> &Vec<Rc<dyn gl_pipeline::GlPipeline>> {
+        &self.pipes
+    }
+
+    pub fn meshes(&self) -> &gl_pipeline::GlMeshes {
+        &self.meshes
+    }
+
+    pub fn materials(&self) -> &gl_pipeline::GlMaterials {
+        &self.materials
+    }
+}
+
+// ----------------------------------------------------------------------------
+#[derive(Debug, Default, Copy, Clone)]
+pub struct Transform {
+    pub position: V4,
+    pub rotation: V4,
+}
+
+// ----------------------------------------------------------------------------
+impl From<Transform> for M4x4 {
+    fn from(tx: Transform) -> Self {
+        affine4x4::translate(&tx.position) * affine4x4::rotate_x1(tx.rotation.x1())
+    }
+}
+
+// ----------------------------------------------------------------------------
+#[derive(Debug, Default, Clone)]
+pub struct RenderObject {
+    pub name: String,
+    pub children: Vec<RenderObject>,
+    pub transform: Transform,
+    pub pipe_id: usize,
+    pub mesh_id: usize,
+    pub material_id: usize,
+}
+
+// ----------------------------------------------------------------------------
+const VS_TEXTURE: &str = r#"
+#version 330 core
+layout (location = 0) in vec2 aPosition;
+layout (location = 1) in vec2 aTexCoord;
+out vec2 TexCoord;
+void main() {
+    gl_Position = vec4(aPosition, 0.0, 1.0);
+    TexCoord = aTexCoord;
+}"#;
+
+// ----------------------------------------------------------------------------
+const FS_TEXTURE: &str = r#"
+#version 330 core
+in vec2 TexCoord;
+out vec4 FragColor;
+uniform sampler2D texture1;
+float rand(vec2 n) {
+    return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
+}
+void main() {
+    float n0 = rand( TexCoord.st) - 0.5;
+    float n1 = rand(-TexCoord.ts) - 0.5;
+    //vec2 noise = 0.05 * vec2(n0*n0, n1*n1);
+    vec2 noise = vec2(0.0);
+    FragColor = texture(texture1, TexCoord.st + noise);
+}"#;

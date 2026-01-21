@@ -68,6 +68,42 @@ pub fn create_plane_mesh() -> (Vec<Vertex>, Vec<u32>) {
 }
 
 // ----------------------------------------------------------------------------
+pub fn tetrahedron(side: f32, height: f32) -> Vec<Vertex> {
+    let h_tri = side * (3.0_f32).sqrt() * 0.5;
+
+    let v0 = V3::new([-side * 0.5, 0.0, -h_tri / 3.0]);
+    let v1 = V3::new([side * 0.5, 0.0, -h_tri / 3.0]);
+    let v2 = V3::new([0.0, 0.0, 2.0 * h_tri / 3.0]);
+    let v3 = V3::new([0.0, height, 0.0]);
+    let n_base = face_normal(v0, v2, v1);
+    let n0 = face_normal(v0, v1, v3);
+    let n1 = face_normal(v1, v2, v3);
+    let n2 = face_normal(v2, v0, v3);
+
+    vec![
+        Vertex { pos: v0, n: n_base },
+        Vertex { pos: v2, n: n_base },
+        Vertex { pos: v1, n: n_base },
+        Vertex { pos: v0, n: n0 },
+        Vertex { pos: v1, n: n0 },
+        Vertex { pos: v3, n: n0 },
+        Vertex { pos: v1, n: n1 },
+        Vertex { pos: v2, n: n1 },
+        Vertex { pos: v3, n: n1 },
+        Vertex { pos: v2, n: n2 },
+        Vertex { pos: v0, n: n2 },
+        Vertex { pos: v3, n: n2 },
+    ]
+}
+
+// ----------------------------------------------------------------------------
+fn face_normal(v0: V3, v1: V3, v2: V3) -> V3 {
+    let u = v1 - v0;
+    let v = v2 - v0;
+    V3::cross(&u, &v).norm()
+}
+
+// ----------------------------------------------------------------------------
 #[derive(Debug)]
 pub struct GlColoredPipeline {
     pub gl: Rc<gl::OpenGlFunctions>,
@@ -120,7 +156,7 @@ impl GlColoredPipeline {
         })
     }
 
-    pub fn create_bindings(&self, vertices: &[Vertex], indices: &[u32]) -> Result<GlMesh> {
+    pub fn create_mesh(&self, vertices: &[Vertex], indices: &[u32]) -> Result<GlMesh> {
         let gl = &self.gl;
         let vao = gl_graphics::create_vertex_array(gl);
         let _vbo = unsafe {
@@ -163,6 +199,8 @@ impl GlColoredPipeline {
             vbo_indices,
             num_indices,
             num_vertices: vertices.len() as gl::GLsizei,
+            primitive_type: gl::TRIANGLES,
+            has_indices: !indices.is_empty(),
         })
     }
 
@@ -180,12 +218,12 @@ impl GlColoredPipeline {
 
     pub fn create_cube(&self) -> Result<GlMesh> {
         let (verts, indices) = create_cube_mesh();
-        self.create_bindings(&verts, &indices)
+        self.create_mesh(&verts, &indices)
     }
 
     pub fn create_plane(&self) -> Result<GlMesh> {
         let (verts, indices) = create_plane_mesh();
-        self.create_bindings(&verts, &indices)
+        self.create_mesh(&verts, &indices)
     }
 }
 
