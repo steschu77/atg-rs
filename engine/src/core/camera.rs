@@ -1,7 +1,7 @@
 use crate::core::component::{Component, Context};
 use crate::core::input;
 use crate::error::Result;
-use crate::v2d::{affine4x4, m4x4::M4x4, v2::V2, v4::V4};
+use crate::v2d::{affine4x4, m4x4::M4x4, v4::V4};
 
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
@@ -11,6 +11,7 @@ pub struct Camera {
     velocity: V4,
     target: V4,
     target_forward: V4,
+    target_smoothed: V4,
     distance: f32,
     stiffness: f32,
     damping: f32,
@@ -20,21 +21,23 @@ pub struct Camera {
 impl Component for Camera {
     fn update(&mut self, ctx: &Context) -> Result<()> {
         let dt = ctx.dt_secs();
-        let desired = self.desired_position();
 
-        let position = V2::new([desired.x0(), desired.x2()]);
-        let height = ctx.terrain.height_at(position.x0(), position.x1());
-        let target_x1 = desired.x1().max(height + 1.0);
-
-        let target = V4::new([position.x0(), target_x1, position.x1(), 0.0]);
-
-        let displacement = self.position - target;
-
-        let accel = -self.stiffness * displacement - self.damping * self.velocity;
-
+        // Smoothing the target position
+        let d = self.target_smoothed - self.target;
+        let accel = -self.stiffness * d - self.damping * self.velocity;
         self.velocity += accel * dt;
-        self.position += self.velocity * dt;
+        self.target_smoothed += self.velocity * dt;
 
+        // Responsive camera rotation
+        let yaw = affine4x4::rotate_x1(self.direction.x1());
+        let offset = yaw * (-self.target_forward.norm() * self.distance);
+
+        // Adapt height based on terrain
+        let position = self.target_smoothed + offset + V4::new([0.0, 4.0, 0.0, 0.0]);
+        let height = ctx.terrain.height_at(position.x0(), position.x2());
+        let target_x1 = position.x1().max(height + 1.0);
+
+        self.position = V4::new([position.x0(), target_x1, position.x2(), 1.0]);
         Ok(())
     }
 }
@@ -42,12 +45,14 @@ impl Component for Camera {
 // ----------------------------------------------------------------------------
 impl Camera {
     pub fn new(position: V4, direction: V4) -> Self {
+        let target = V4::new([0.0, 0.0, -1.0, 0.0]);
         Self {
             position,
             direction,
             velocity: V4::new([0.0, 0.0, 0.0, 0.0]),
-            target: V4::new([0.0, 0.0, -1.0, 0.0]),
+            target,
             target_forward: V4::new([0.0, 0.0, -1.0, 0.0]),
+            target_smoothed: target,
             distance: 4.0,
             stiffness: 50.0,
             damping: 10.0,
@@ -75,25 +80,13 @@ impl Camera {
 
     pub fn transform(&self) -> M4x4 {
         let pitch = affine4x4::rotate_x0(-self.direction.x0());
-        let yaw = affine4x4::rotate_x1(self.direction.x1());
-        let forward = self.target - self.position;
-        let forward = yaw * forward;
-        let look_at = affine4x4::look_at(
-            self.position,
-            self.position + forward,
-            V4::new([0.0, 1.0, 0.0, 0.0]),
-        );
+        let look_at = affine4x4::look_at(self.position, self.target, V4::new([0.0, 1.0, 0.0, 0.0]));
         pitch * look_at
     }
 
     pub fn look_at(&mut self, target: V4, forward: V4) {
         self.target = target;
         self.target_forward = forward;
-    }
-
-    fn desired_position(&self) -> V4 {
-        let target_offset = -self.target_forward.norm() * self.distance;
-        self.target + target_offset + V4::new([0.0, 5.0, 0.0, 0.0])
     }
 
     fn move_by(&mut self, d: V4) {
