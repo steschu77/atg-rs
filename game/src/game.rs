@@ -22,7 +22,10 @@ impl IGame for Game {
     }
 
     fn render(&mut self) -> Result<()> {
-        self.renderer.render(&self.world)?;
+        let render_context = self.world.render_context();
+        let camera = self.world.camera();
+        let objects = self.world.objects();
+        self.renderer.render(camera, objects, render_context)?;
         Ok(())
     }
 }

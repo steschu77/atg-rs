@@ -1,12 +1,12 @@
 use crate::core::gl_font::{Font, FontGlyph};
-use crate::core::gl_pipeline::GlMesh;
-use crate::core::gl_pipeline_msdftex::{GlMSDFTexPipeline, Vertex, add_plane_quad};
+use crate::core::gl_pipeline_msdftex::{Vertex, add_plane_quad};
+use crate::core::gl_renderer::RenderContext;
 use crate::error::Result;
 use crate::util::utf8::next_code_point;
 use crate::v2d::v2::V2;
 
 // ----------------------------------------------------------------------------
-pub fn create_text_mesh(pipe: &GlMSDFTexPipeline, font: &Font, text: &str) -> Result<GlMesh> {
+pub fn create_text_mesh(context: &mut RenderContext, font: &Font, text: &str) -> Result<usize> {
     let mut iter = text.as_bytes().iter();
     let mut pos = V2::new([0.0, 0.0]);
     let mut verts = Vec::new();
@@ -17,14 +17,12 @@ pub fn create_text_mesh(pipe: &GlMSDFTexPipeline, font: &Font, text: &str) -> Re
         }
     }
 
-    let mesh = pipe.create_bindings(&verts)?;
+    let mesh_id = context.create_msdftex_mesh(&verts)?;
     log::info!(
-        "Created text mesh for \"{}\" with {} vertices, vao {}",
-        text,
-        verts.len(),
-        mesh.vao_vertices[0]
+        "Created text mesh for \"{text}\" with {len} vertices, mesh: {mesh_id}",
+        len = verts.len(),
     );
-    Ok(mesh)
+    Ok(mesh_id)
 }
 
 // ------------------------------------------------------------------------

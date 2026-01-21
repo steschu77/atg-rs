@@ -40,7 +40,7 @@ impl GlMSDFTexPipeline {
         })
     }
 
-    pub fn create_bindings(&self, vertices: &[Vertex]) -> Result<GlMesh> {
+    pub fn create_mesh(&self, vertices: &[Vertex]) -> Result<GlMesh> {
         let gl = &self.gl;
         let vao = gl_graphics::create_vertex_array(gl);
         let _vbo = unsafe {
@@ -68,18 +68,15 @@ impl GlMSDFTexPipeline {
             vbo_indices: 0,
             num_indices: 0,
             num_vertices: vertices.len() as gl::GLsizei,
+            primitive_type: gl::TRIANGLES,
+            has_indices: false,
         })
     }
 }
 
 // ----------------------------------------------------------------------------
 impl GlPipeline for GlMSDFTexPipeline {
-    fn render(
-        &self,
-        bindings: &GlMesh,
-        material: &GlMaterial,
-        uniforms: &GlUniforms,
-    ) -> Result<()> {
+    fn render(&self, mesh: &GlMesh, material: &GlMaterial, uniforms: &GlUniforms) -> Result<()> {
         let gl = &self.gl;
         let texture = match material {
             GlMaterial::Texture { texture } => *texture,
@@ -89,10 +86,10 @@ impl GlPipeline for GlMSDFTexPipeline {
             gl.UseProgram(self.shader);
             gl.ActiveTexture(gl::TEXTURE0);
             gl.BindTexture(gl::TEXTURE_2D, texture);
-            gl.BindVertexArray(bindings.vao_vertices[0]);
+            gl.BindVertexArray(mesh.vao_vertices[0]);
             gl.UniformMatrix4fv(self.uid_model, 1, gl::FALSE, uniforms.model.as_ptr());
             gl.UniformMatrix4fv(self.uid_view, 1, gl::FALSE, uniforms.camera.as_ptr());
-            gl.DrawArrays(gl::TRIANGLES, 0, bindings.num_vertices);
+            gl.DrawArrays(mesh.primitive_type, 0, mesh.num_vertices);
         }
         Ok(())
     }

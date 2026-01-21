@@ -1,5 +1,5 @@
-use crate::core::gl_pipeline::GlMesh;
-use crate::core::gl_pipeline_colored::{GlColoredPipeline, Vertex};
+use crate::core::gl_pipeline_colored::Vertex;
+use crate::core::gl_renderer::RenderContext;
 use crate::error::Result;
 use crate::v2d::v3::V3;
 
@@ -29,10 +29,10 @@ impl Terrain {
 
     pub fn create_chunk_mesh(
         &self,
-        pipe: &GlColoredPipeline,
+        context: &mut RenderContext,
         chunk_x: u32,
         chunk_z: u32,
-    ) -> Result<GlMesh> {
+    ) -> Result<usize> {
         let resolution: f32 = TERRAIN_RESOLUTION;
         let chunk_size: u32 = 16;
         let mut vertices = Vec::new();
@@ -69,7 +69,7 @@ impl Terrain {
             }
         }
 
-        pipe.create_bindings(&vertices, &indices)
+        context.create_colored_mesh(&vertices, &indices)
     }
 
     fn get_height_at(&self, x: u32, z: u32) -> f32 {
