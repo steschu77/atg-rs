@@ -13,20 +13,23 @@ pub struct Vertex {
 }
 
 // --------------------------------------------------------------------------------
-pub fn add_cube_quad(verts: &mut Vec<Vertex>, indices: &mut Vec<u32>, u: V3, v: V3) {
+fn add_unit_cube_quad(verts: &mut Vec<Vertex>, indices: &mut Vec<u32>, u: V3, v: V3) {
     let i = verts.len() as u32;
     let n = V3::cross(&u, &v);
+
+    #[rustfmt::skip]
     verts.extend_from_slice(&[
-        Vertex { pos: n - u - v, n },
-        Vertex { pos: n + u - v, n },
-        Vertex { pos: n + u + v, n },
-        Vertex { pos: n - u + v, n },
+        Vertex { pos: 0.5 * (n - u - v), n },
+        Vertex { pos: 0.5 * (n + u - v), n },
+        Vertex { pos: 0.5 * (n + u + v), n },
+        Vertex { pos: 0.5 * (n - u + v), n },
     ]);
+
     indices.extend_from_slice(&[i, i + 1, i + 2, i + 2, i + 3, i]);
 }
 
 // --------------------------------------------------------------------------------
-pub fn create_cube_mesh() -> (Vec<Vertex>, Vec<u32>) {
+pub fn create_unit_cube_mesh() -> (Vec<Vertex>, Vec<u32>) {
     const U_V_N: [(V3, V3); 3] = [
         (V3::new([1.0, 0.0, 0.0]), V3::new([0.0, 1.0, 0.0])),
         (V3::new([0.0, 1.0, 0.0]), V3::new([0.0, 0.0, 1.0])),
@@ -36,8 +39,8 @@ pub fn create_cube_mesh() -> (Vec<Vertex>, Vec<u32>) {
     let mut verts = Vec::with_capacity(24);
     let mut indices = Vec::with_capacity(36);
     for (u, v) in U_V_N {
-        add_cube_quad(&mut verts, &mut indices, u, v);
-        add_cube_quad(&mut verts, &mut indices, v, u);
+        add_unit_cube_quad(&mut verts, &mut indices, u, v);
+        add_unit_cube_quad(&mut verts, &mut indices, v, u);
     }
 
     (verts, indices)
@@ -217,7 +220,7 @@ impl GlColoredPipeline {
     }
 
     pub fn create_cube(&self) -> Result<GlMesh> {
-        let (verts, indices) = create_cube_mesh();
+        let (verts, indices) = create_unit_cube_mesh();
         self.create_mesh(&verts, &indices)
     }
 

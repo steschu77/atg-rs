@@ -193,6 +193,11 @@ impl V3 {
         let x2 = self.x0() * v1.x1() - self.x1() * v1.x0();
         V3::new([x0, x1, x2])
     }
+
+    // ------------------------------------------------------------------------
+    pub fn lerp(&self, other: &V3, t: f32) -> V3 {
+        *self + (*other - *self) * t
+    }
 }
 
 #[cfg(test)]
@@ -220,5 +225,6 @@ mod tests {
         assert_eq!(V3::distance(&v0, &v1), 3.0);
         assert_eq!(v0.dot(&v1), 11.0);
         assert_eq!(v0.cross(&v1), V3::new([4.0, -3.0, 2.0]));
+        assert_eq!(v0.lerp(&v1, 0.5), V3::new([2.0, 3.0, 0.5]));
     }
 }

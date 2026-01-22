@@ -41,6 +41,7 @@ impl World {
             transform: Transform {
                 position: V4::new([1.0, 0.0, 0.0, 1.0]),
                 rotation: V4::default(),
+                size: V4::new([1.0, 1.0, 1.0, 1.0]),
             },
             pipe_id: gl_pipeline::GlPipelineType::MSDFTex.into(),
             mesh_id,
@@ -55,6 +56,7 @@ impl World {
             transform: Transform {
                 position: V4::new([1.0, 0.0, 0.0, 1.0]),
                 rotation: V4::default(),
+                size: V4::new([1.0, 1.0, 1.0, 1.0]),
             },
             pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
             mesh_id,
@@ -92,8 +94,7 @@ impl World {
         self.camera.update(&ctx)?;
         self.player.update(&ctx)?;
 
-        self.debug.transform.position =
-            self.player.game_object.transform.position + V4::new([0.0, 1.0, 0.0, 0.0]);
+        self.debug.transform.position = self.player.objects[1].transform.position;
 
         let player_forward = V4::new([
             self.player.rotation.x_axis().x0(),
@@ -103,7 +104,7 @@ impl World {
         ]);
 
         self.camera
-            .look_at(self.player.game_object.transform.position, player_forward);
+            .look_at(self.player.objects[1].transform.position, player_forward);
         Ok(())
     }
 
@@ -113,7 +114,7 @@ impl World {
 
     pub fn objects(&self) -> Vec<RenderObject> {
         let mut objects = self.terrain_chunks.clone();
-        objects.push(self.player.game_object.clone());
+        objects.extend(self.player.objects.iter().cloned());
         objects.push(self.debug.clone());
         objects
     }

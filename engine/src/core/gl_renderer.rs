@@ -180,7 +180,7 @@ impl RenderContext {
     }
 
     pub fn create_cube(&mut self) -> Result<usize> {
-        let (verts, indices) = gl_pipeline_colored::create_cube_mesh();
+        let (verts, indices) = gl_pipeline_colored::create_unit_cube_mesh();
         let mesh = self.colored_pipe.create_mesh(&verts, &indices)?;
         Ok(self.meshes.insert_mesh(mesh))
     }
@@ -209,12 +209,15 @@ impl RenderContext {
 pub struct Transform {
     pub position: V4,
     pub rotation: V4,
+    pub size: V4,
 }
 
 // ----------------------------------------------------------------------------
 impl From<Transform> for M4x4 {
     fn from(tx: Transform) -> Self {
-        affine4x4::translate(&tx.position) * affine4x4::rotate_x1(tx.rotation.x1())
+        affine4x4::translate(&tx.position)
+            * affine4x4::rotate_x1(tx.rotation.x1())
+            * affine4x4::scale(&tx.size)
     }
 }
 
