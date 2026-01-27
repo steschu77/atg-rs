@@ -159,7 +159,12 @@ impl GlColoredPipeline {
         })
     }
 
-    pub fn create_mesh(&self, vertices: &[Vertex], indices: &[u32]) -> Result<GlMesh> {
+    pub fn create_mesh(
+        &self,
+        vertices: &[Vertex],
+        indices: &[u32],
+        is_debug: bool,
+    ) -> Result<GlMesh> {
         let gl = &self.gl;
         let vao = gl_graphics::create_vertex_array(gl);
         let _vbo = unsafe {
@@ -204,6 +209,7 @@ impl GlColoredPipeline {
             num_vertices: vertices.len() as gl::GLsizei,
             primitive_type: gl::TRIANGLES,
             has_indices: !indices.is_empty(),
+            is_debug,
         })
     }
 
@@ -221,12 +227,12 @@ impl GlColoredPipeline {
 
     pub fn create_cube(&self) -> Result<GlMesh> {
         let (verts, indices) = create_unit_cube_mesh();
-        self.create_mesh(&verts, &indices)
+        self.create_mesh(&verts, &indices, false)
     }
 
     pub fn create_plane(&self) -> Result<GlMesh> {
         let (verts, indices) = create_plane_mesh();
-        self.create_mesh(&verts, &indices)
+        self.create_mesh(&verts, &indices, false)
     }
 }
 
@@ -261,12 +267,24 @@ impl GlPipeline for GlColoredPipeline {
             gl.Uniform3fv(self.uid_light_color, 1, uniforms.light_color.as_ptr());
             gl.Uniform3fv(self.uid_object_color, 1, color.as_ptr());
             gl.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, bindings.vbo_indices);
-            gl.DrawElements(
-                gl::TRIANGLES,
-                bindings.num_indices,
-                gl::UNSIGNED_INT,
-                std::ptr::null(),
-            );
+
+            if !bindings.is_debug {
+                gl.DrawElements(
+                    bindings.primitive_type,
+                    bindings.num_indices,
+                    gl::UNSIGNED_INT,
+                    std::ptr::null(),
+                );
+            } else {
+                gl.PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
+                gl.DrawElements(
+                    bindings.primitive_type,
+                    bindings.num_indices,
+                    gl::UNSIGNED_INT,
+                    std::ptr::null(),
+                );
+                gl.PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
+            }
         }
         Ok(())
     }

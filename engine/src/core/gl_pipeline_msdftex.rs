@@ -70,6 +70,7 @@ impl GlMSDFTexPipeline {
             num_vertices: vertices.len() as gl::GLsizei,
             primitive_type: gl::TRIANGLES,
             has_indices: false,
+            is_debug: false,
         })
     }
 }
