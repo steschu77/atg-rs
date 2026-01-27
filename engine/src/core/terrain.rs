@@ -69,7 +69,7 @@ impl Terrain {
             }
         }
 
-        context.create_colored_mesh(&vertices, &indices)
+        context.create_colored_mesh(&vertices, &indices, true)
     }
 
     fn get_height_at(&self, x: u32, z: u32) -> f32 {

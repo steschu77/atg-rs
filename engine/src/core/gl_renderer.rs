@@ -166,8 +166,9 @@ impl RenderContext {
         &mut self,
         vertices: &[gl_pipeline_colored::Vertex],
         indices: &[u32],
+        is_debug: bool,
     ) -> Result<usize> {
-        let mesh = self.colored_pipe.create_mesh(vertices, indices)?;
+        let mesh = self.colored_pipe.create_mesh(vertices, indices, is_debug)?;
         Ok(self.meshes.insert_mesh(mesh))
     }
 
@@ -179,15 +180,15 @@ impl RenderContext {
         Ok(self.meshes.insert_mesh(mesh))
     }
 
-    pub fn create_cube(&mut self) -> Result<usize> {
+    pub fn create_cube(&mut self, is_debug: bool) -> Result<usize> {
         let (verts, indices) = gl_pipeline_colored::create_unit_cube_mesh();
-        let mesh = self.colored_pipe.create_mesh(&verts, &indices)?;
+        let mesh = self.colored_pipe.create_mesh(&verts, &indices, is_debug)?;
         Ok(self.meshes.insert_mesh(mesh))
     }
 
-    pub fn create_plane(&mut self) -> Result<usize> {
+    pub fn create_plane(&mut self, is_debug: bool) -> Result<usize> {
         let (verts, indices) = gl_pipeline_colored::create_plane_mesh();
-        let mesh = self.colored_pipe.create_mesh(&verts, &indices)?;
+        let mesh = self.colored_pipe.create_mesh(&verts, &indices, is_debug)?;
         Ok(self.meshes.insert_mesh(mesh))
     }
 

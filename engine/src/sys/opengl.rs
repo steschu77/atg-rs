@@ -36,6 +36,16 @@ pub const TRIANGLE_STRIP: GLenum = 0x0005;
 pub const TRIANGLE_FAN: GLenum = 0x0006;
 pub const QUADS: GLenum = 0x0007;
 
+pub const FRONT_LEFT: GLenum = 0x0400;
+pub const FRONT_RIGHT: GLenum = 0x0401;
+pub const BACK_LEFT: GLenum = 0x0402;
+pub const BACK_RIGHT: GLenum = 0x0403;
+pub const FRONT: GLenum = 0x0404;
+pub const BACK: GLenum = 0x0405;
+pub const LEFT: GLenum = 0x0406;
+pub const RIGHT: GLenum = 0x0407;
+pub const FRONT_AND_BACK: GLenum = 0x0408;
+
 pub const INVALID_ENUM: GLenum = 0x0500;
 pub const INVALID_VALUE: GLenum = 0x0501;
 pub const INVALID_OPERATION: GLenum = 0x0502;
@@ -60,6 +70,10 @@ pub const DEPTH_COMPONENT: GLenum = 0x1902;
 pub const RED: GLenum = 0x1903;
 pub const RGB: GLenum = 0x1907;
 pub const RGBA: GLenum = 0x1908;
+
+pub const POINT: GLenum = 0x1B00;
+pub const LINE: GLenum = 0x1B01;
+pub const FILL: GLenum = 0x1B02;
 
 pub const RGB5: GLint = 0x8050;
 pub const RGB8: GLint = 0x8051;
@@ -196,6 +210,7 @@ pub type FnAlphaFunc = unsafe fn(GLenum, GLclampf);
 pub type FnBlendFunc = unsafe fn(GLenum, GLenum);
 pub type FnPointSize = unsafe fn(GLfloat);
 pub type FnLineWidth = unsafe fn(GLfloat);
+pub type FnPolygonMode = unsafe fn(GLenum, GLenum);
 
 pub type FnGenTextures = unsafe fn(GLsizei, *mut GLuint);
 pub type FnBindTexture = unsafe fn(GLenum, GLuint);
@@ -294,6 +309,7 @@ pub struct OpenGlFunctions {
     fnBlendFunc: FnBlendFunc,
     fnPointSize: FnPointSize,
     fnLineWidth: FnLineWidth,
+    fnPolygonMode: FnPolygonMode,
 
     fnGenTextures: FnGenTextures,
     fnBindTexture: FnBindTexture,
@@ -427,6 +443,7 @@ impl OpenGlFunctions {
             fnBlendFunc: load_gl_fn!(load_fn, "glBlendFunc\0" => FnBlendFunc)?,
             fnPointSize: load_gl_fn!(load_fn, "glPointSize\0" => FnPointSize)?,
             fnLineWidth: load_gl_fn!(load_fn, "glLineWidth\0" => FnLineWidth)?,
+            fnPolygonMode: load_gl_fn!(load_fn, "glPolygonMode\0" => FnPolygonMode)?,
             
             fnGenTextures: load_gl_fn!(load_fn, "glGenTextures\0" => FnGenTextures)?,
             fnBindTexture: load_gl_fn!(load_fn, "glBindTexture\0" => FnBindTexture)?,
@@ -525,6 +542,7 @@ impl OpenGlFunctions {
     impl_gl_fn!(fnBlendFunc, BlendFunc(src: GLenum, dst: GLenum));
     impl_gl_fn!(fnPointSize, PointSize(size: GLfloat));
     impl_gl_fn!(fnLineWidth, LineWidth(width: GLfloat));
+    impl_gl_fn!(fnPolygonMode, PolygonMode(face: GLenum, mode: GLenum));
 
     impl_gl_fn!(fnGenTextures, GenTextures(n: GLsizei, textures: *mut GLuint));
     impl_gl_fn!(fnBindTexture, BindTexture(target: GLenum, texture: GLuint));

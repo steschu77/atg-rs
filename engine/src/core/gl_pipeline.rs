@@ -30,6 +30,7 @@ pub struct GlMesh {
     pub num_vertices: gl::GLsizei,
     pub primitive_type: gl::GLenum,
     pub has_indices: bool,
+    pub is_debug: bool,
 }
 
 // ----------------------------------------------------------------------------
