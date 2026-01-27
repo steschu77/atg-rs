@@ -15,13 +15,53 @@ pub enum AnimationState {
 }
 
 // ----------------------------------------------------------------------------
-// Animation targets for smooth transitions
 #[derive(Debug, Clone, Default)]
 pub struct Pose {
     pub body: V3,
     pub head: V3,
-    pub foot_left: V3,
-    pub foot_right: V3,
+    pub feet: [V3; 2],
+}
+
+// ----------------------------------------------------------------------------
+impl Pose {
+    pub fn lerp(&self, target: &Pose, t: f32) -> Pose {
+        Pose {
+            body: self.body.lerp(&target.body, t),
+            head: self.head.lerp(&target.head, t),
+            feet: [
+                self.feet[0].lerp(&target.feet[0], t),
+                self.feet[1].lerp(&target.feet[1], t),
+            ],
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum Foot {
+    Left,
+    Right,
+}
+
+// ----------------------------------------------------------------------------
+impl Foot {
+    pub fn index(self) -> usize {
+        match self {
+            Foot::Left => 0,
+            Foot::Right => 1,
+        }
+    }
+
+    pub fn support(self) -> usize {
+        1 - self.index()
+    }
+
+    pub fn lateral(self) -> f32 {
+        match self {
+            Foot::Left => -0.4,
+            Foot::Right => 0.4,
+        }
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -103,63 +143,44 @@ impl Player {
         }
     }
 
-    pub fn start_step(&mut self, ctx: &Context, state: AnimationState) {
-        self.state = state;
+    pub fn step(&mut self, ctx: &Context, foot: Foot, forward: Option<f32>) {
+        self.state = match (foot, forward) {
+            (Foot::Left, Some(_)) => AnimationState::SteppingLeft,
+            (Foot::Right, Some(_)) => AnimationState::SteppingRight,
+            (Foot::Left, None) => AnimationState::IntoIdleLeft,
+            (Foot::Right, None) => AnimationState::IntoIdleRight,
+        };
+
         self.step_progress = 0.0;
         self.start_pose = self.current_pose.clone();
 
-        let step_offset = if state == AnimationState::SteppingLeft {
-            0.2
-        } else {
-            -0.2
-        };
+        let step = foot.index();
+        let support = foot.support();
 
-        let x_axis = self.rotation.x_axis();
-        let y_axis = self.rotation.y_axis();
+        // place foot 'forward' units ahead of support foot
+        let foot_offset = V2::new([foot.lateral(), forward.unwrap_or(0.0)]);
 
-        let body_pos = self.position + y_axis * self.step_length * 0.5;
-        let foot_pos = self.position + y_axis * self.step_length + x_axis * step_offset;
+        let support_pos = V2::new([
+            self.current_pose.feet[support].x0(),
+            self.current_pose.feet[support].x2(),
+        ]);
+
+        let foot_pos = support_pos + self.rotation * foot_offset;
         let height = ctx.terrain.height_at(foot_pos.x0(), foot_pos.x1());
 
-        self.target_pose.body = V3::new([body_pos.x0(), height + 0.8, body_pos.x1()]);
-        self.target_pose.head = V3::new([body_pos.x0(), height + 1.8, body_pos.x1()]);
+        let body_pos = 0.5
+            * V2::new([
+                foot_pos.x0() + self.current_pose.feet[support].x0(),
+                foot_pos.x1() + self.current_pose.feet[support].x2(),
+            ]);
 
-        if state == AnimationState::SteppingLeft {
-            self.target_pose.foot_left = V3::new([foot_pos.x0(), height + 0.1, foot_pos.x1()]);
-            self.target_pose.foot_right = self.current_pose.foot_right;
-        } else {
-            self.target_pose.foot_right = V3::new([foot_pos.x0(), height + 0.1, foot_pos.x1()]);
-            self.target_pose.foot_left = self.current_pose.foot_left;
-        };
-    }
+        let mut feet = self.current_pose.feet;
+        feet[step] = V3::new([foot_pos.x0(), height + 0.1, foot_pos.x1()]);
 
-    pub fn to_idle(&mut self, ctx: &Context, state: AnimationState) {
-        self.state = state;
-        self.step_progress = 0.0;
-        self.start_pose = self.current_pose.clone();
-
-        let step_offset = if state == AnimationState::IntoIdleLeft {
-            0.2
-        } else {
-            -0.2
-        };
-
-        let x_axis = self.rotation.x_axis();
-        let y_axis = self.rotation.y_axis();
-
-        let body_pos = self.position + y_axis * self.step_length * 0.5;
-        let foot_pos = self.position + y_axis * self.step_length * 0.5 + x_axis * step_offset;
-        let height = ctx.terrain.height_at(foot_pos.x0(), foot_pos.x1());
-
-        self.target_pose.body = V3::new([body_pos.x0(), height + 0.6, body_pos.x1()]);
-        self.target_pose.head = V3::new([body_pos.x0(), height + 1.6, body_pos.x1()]);
-
-        if state == AnimationState::IntoIdleLeft {
-            self.target_pose.foot_left = V3::new([foot_pos.x0(), height + 0.1, foot_pos.x1()]);
-            self.target_pose.foot_right = self.current_pose.foot_right;
-        } else {
-            self.target_pose.foot_right = V3::new([foot_pos.x0(), height + 0.1, foot_pos.x1()]);
-            self.target_pose.foot_left = self.current_pose.foot_left;
+        self.target_pose = Pose {
+            body: V3::new([body_pos.x0(), height + 0.8, body_pos.x1()]),
+            head: V3::new([body_pos.x0(), height + 1.8, body_pos.x1()]),
+            feet,
         };
     }
 
@@ -169,13 +190,13 @@ impl Player {
             if self.state == AnimationState::SteppingLeft
                 || self.state == AnimationState::IntoIdleLeft
             {
-                self.start_step(ctx, AnimationState::SteppingRight);
+                self.step(ctx, Foot::Right, Some(self.step_length));
                 return;
             }
             if self.state == AnimationState::SteppingRight
                 || self.state == AnimationState::IntoIdleRight
             {
-                self.start_step(ctx, AnimationState::SteppingLeft);
+                self.step(ctx, Foot::Left, Some(self.step_length));
                 return;
             }
         }
@@ -183,11 +204,11 @@ impl Player {
         // Transition to idle
         match self.state {
             AnimationState::SteppingLeft => {
-                self.to_idle(ctx, AnimationState::IntoIdleRight);
+                self.step(ctx, Foot::Right, None);
                 return;
             }
             AnimationState::SteppingRight => {
-                self.to_idle(ctx, AnimationState::IntoIdleLeft);
+                self.step(ctx, Foot::Left, None);
                 return;
             }
             AnimationState::IntoIdleRight | AnimationState::IntoIdleLeft => {
@@ -204,6 +225,10 @@ impl Player {
         self.current_pose = self.target_pose.clone();
         self.step_progress = 0.0;
     }
+
+    pub fn position(&self) -> V4 {
+        V4::new([self.position.x0(), 1.8, self.position.x1(), 1.0])
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -217,6 +242,7 @@ impl Component for Player {
         if t >= 1.0 {
             self.finish_step(ctx);
         }
+        let t = self.step_progress * self.step_speed;
 
         if ctx.state.is_pressed(input::Key::TurnLeft) {
             self.rotation -= TURN_SPEED * dt;
@@ -228,7 +254,7 @@ impl Component for Player {
         match self.state {
             AnimationState::Idle => {
                 if ctx.state.is_pressed(input::Key::MoveForward) {
-                    self.start_step(ctx, AnimationState::SteppingLeft);
+                    self.step(ctx, Foot::Left, Some(self.step_length));
                 }
             }
             AnimationState::IntoIdleRight
@@ -238,18 +264,11 @@ impl Component for Player {
                 // Interpolate position
                 let start = &self.start_pose;
                 let target = &self.target_pose;
-                let current = &mut self.current_pose;
-                current.body = start.body.lerp(&target.body, t);
-                current.head = start.head.lerp(&target.head, t);
-                current.foot_left = start.foot_left.lerp(&target.foot_left, t);
-                current.foot_right = start.foot_right.lerp(&target.foot_right, t);
+                self.current_pose = start.lerp(target, t);
             }
         }
 
-        let pos = self
-            .current_pose
-            .foot_left
-            .lerp(&self.current_pose.foot_right, 0.5);
+        let pos = 0.5 * (self.current_pose.feet[0] + self.current_pose.feet[1]);
         self.position = V2::new([pos.x0(), pos.x2()]);
 
         self.objects[0].transform.position = V4::new([
@@ -265,15 +284,15 @@ impl Component for Player {
             1.0,
         ]);
         self.objects[2].transform.position = V4::new([
-            self.current_pose.foot_left.x0(),
-            self.current_pose.foot_left.x1(),
-            self.current_pose.foot_left.x2(),
+            self.current_pose.feet[0].x0(),
+            self.current_pose.feet[0].x1(),
+            self.current_pose.feet[0].x2(),
             1.0,
         ]);
         self.objects[3].transform.position = V4::new([
-            self.current_pose.foot_right.x0(),
-            self.current_pose.foot_right.x1(),
-            self.current_pose.foot_right.x2(),
+            self.current_pose.feet[1].x0(),
+            self.current_pose.feet[1].x1(),
+            self.current_pose.feet[1].x2(),
             1.0,
         ]);
 

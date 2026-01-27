@@ -94,7 +94,7 @@ impl World {
         self.camera.update(&ctx)?;
         self.player.update(&ctx)?;
 
-        self.debug.transform.position = self.player.objects[1].transform.position;
+        self.debug.transform.position = self.player.position();
 
         let player_forward = V4::new([
             self.player.rotation.x_axis().x0(),
@@ -103,8 +103,7 @@ impl World {
             0.0,
         ]);
 
-        self.camera
-            .look_at(self.player.objects[1].transform.position, player_forward);
+        self.camera.look_at(self.player.position(), player_forward);
         Ok(())
     }
 
