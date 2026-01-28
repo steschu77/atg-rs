@@ -143,6 +143,11 @@ impl Player {
         }
     }
 
+    pub fn idle(&mut self) {
+        self.step_progress = 0.0;
+        self.current_pose = self.target_pose.clone();
+    }
+
     pub fn step(&mut self, ctx: &Context, foot: Foot, forward: Option<f32>) {
         self.step_progress = 0.0;
         self.start_pose = self.current_pose.clone();
@@ -178,41 +183,39 @@ impl Player {
     }
 
     pub fn finish_step(&mut self, ctx: &Context) {
-        if ctx.state.is_pressed(input::Key::MoveForward) {
-            // Keep walking
-            if self.state == AnimationState::SteppingLeft
-                || self.state == AnimationState::IntoIdleLeft
-            {
-                self.state = AnimationState::SteppingRight;
-                self.step(ctx, Foot::Right, Some(self.step_length));
-                return;
-            } else {
-                self.state = AnimationState::SteppingLeft;
-                self.step(ctx, Foot::Left, Some(self.step_length));
-                return;
+        let keep_walking = ctx.state.is_pressed(input::Key::MoveForward);
+        let new_state = match self.state {
+            AnimationState::SteppingLeft if keep_walking => AnimationState::SteppingRight,
+            AnimationState::IntoIdleLeft if keep_walking => AnimationState::SteppingRight,
+            AnimationState::SteppingRight if keep_walking => AnimationState::SteppingLeft,
+            AnimationState::IntoIdleRight if keep_walking => AnimationState::SteppingLeft,
+            AnimationState::SteppingLeft => AnimationState::IntoIdleRight,
+            AnimationState::SteppingRight => AnimationState::IntoIdleLeft,
+            AnimationState::IntoIdleLeft | AnimationState::IntoIdleRight | AnimationState::Idle => {
+                AnimationState::Idle
+            }
+        };
+
+        if new_state != self.state {
+            self.state = new_state;
+            match new_state {
+                AnimationState::SteppingLeft => {
+                    self.step(ctx, Foot::Left, Some(self.step_length));
+                }
+                AnimationState::SteppingRight => {
+                    self.step(ctx, Foot::Right, Some(self.step_length));
+                }
+                AnimationState::IntoIdleLeft => {
+                    self.step(ctx, Foot::Left, None);
+                }
+                AnimationState::IntoIdleRight => {
+                    self.step(ctx, Foot::Right, None);
+                }
+                AnimationState::Idle => {
+                    self.idle();
+                }
             }
         }
-
-        // Transition to idle
-        match self.state {
-            AnimationState::SteppingLeft => {
-                self.state = AnimationState::IntoIdleRight;
-                self.step(ctx, Foot::Right, None);
-            }
-            AnimationState::SteppingRight => {
-                self.state = AnimationState::IntoIdleLeft;
-                self.step(ctx, Foot::Left, None);
-            }
-            _ => {
-                self.idle();
-            }
-        }
-    }
-
-    pub fn idle(&mut self) {
-        self.state = AnimationState::Idle;
-        self.current_pose = self.target_pose.clone();
-        self.step_progress = 0.0;
     }
 
     pub fn position(&self) -> V4 {
