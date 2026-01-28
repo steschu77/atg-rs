@@ -363,6 +363,7 @@ impl Component for Player {
             phase = 0.0;
         }
 
+        let mut feet_rot = [0.0, 0.0];
         match self.state {
             AnimationState::Idle => {
                 self.current_pose = self.target_pose.clone();
@@ -376,7 +377,7 @@ impl Component for Player {
                     pose.feet[idx] =
                         bezier_quad(step.foot_start, step.foot_control, step.foot_target, t);
 
-                    //pose.feet_rot[idx] = step.toe_roll_max * toe_roll(t);
+                    feet_rot[idx] = step.toe_roll_max * toe_roll(t);
 
                     let bob = step.body_bob_height * body_bob(t);
                     pose.body += V3::new([0.0, bob, 0.0]);
@@ -419,7 +420,13 @@ impl Component for Player {
         let rotation = V4::new([0.0, rotation, 0.0, 0.0]);
         self.objects[0].transform.rotation = rotation;
         self.objects[1].transform.rotation = rotation;
+
+        let rotation = self.rotation.get();
+        let rotation = V4::new([feet_rot[0], rotation, 0.0, 0.0]);
         self.objects[2].transform.rotation = rotation;
+
+        let rotation = self.rotation.get();
+        let rotation = V4::new([feet_rot[1], rotation, 0.0, 0.0]);
         self.objects[3].transform.rotation = rotation;
         Ok(())
     }

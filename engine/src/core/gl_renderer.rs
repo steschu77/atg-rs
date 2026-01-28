@@ -218,6 +218,7 @@ impl From<Transform> for M4x4 {
     fn from(tx: Transform) -> Self {
         affine4x4::translate(&tx.position)
             * affine4x4::rotate_x1(tx.rotation.x1())
+            * affine4x4::rotate_x0(tx.rotation.x0())
             * affine4x4::scale(&tx.size)
     }
 }
