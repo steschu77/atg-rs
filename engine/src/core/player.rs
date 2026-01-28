@@ -13,10 +13,8 @@ use crate::v2d::{r2::R2, v2::V2, v3::V3, v4::V4};
 pub enum AnimationState {
     #[default]
     Idle,
-    SteppingLeft,
-    SteppingRight,
-    IntoIdleLeft,
-    IntoIdleRight,
+    Stepping,
+    Closing,
 }
 
 // ----------------------------------------------------------------------------
@@ -61,6 +59,13 @@ pub enum Foot {
 
 // ----------------------------------------------------------------------------
 impl Foot {
+    pub fn other(self) -> Foot {
+        match self {
+            Foot::Left => Foot::Right,
+            Foot::Right => Foot::Left,
+        }
+    }
+
     pub fn index_self(self) -> usize {
         match self {
             Foot::Left => 0,
@@ -81,12 +86,28 @@ impl Foot {
 }
 
 // ----------------------------------------------------------------------------
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum StepIntent {
+    Advance, // continue walking
+    Close,   // bring feet together and stop
+}
+
+// ----------------------------------------------------------------------------
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum StepResult {
+    Idle,
+    Advance(Foot),
+    Close(Foot),
+}
+
+// ----------------------------------------------------------------------------
 #[derive(Debug)]
 pub struct Player {
     pub objects: [RenderObject; 4],
     pub rotation: R2,
     pub position: V2,
     pub state: AnimationState,
+    pub active_foot: Option<Foot>,
     pub current_pose: Pose,
     pub start_pose: Pose,
     pub target_pose: Pose,
@@ -148,6 +169,7 @@ impl Player {
             rotation: R2::default(),
             position: V2::default(),
             state: AnimationState::Idle,
+            active_foot: None,
             current_pose: Pose::default(),
             start_pose: Pose::default(),
             target_pose: Pose::default(),
@@ -170,7 +192,7 @@ impl Player {
         self.current_pose = self.target_pose.clone();
     }
 
-    pub fn step(&mut self, ctx: &Context, foot: Foot, forward: bool) {
+    pub fn step(&mut self, ctx: &Context, foot: Foot, intent: StepIntent) {
         let Skeleton {
             body_height,
             head_height,
@@ -187,10 +209,11 @@ impl Player {
         let stance_foot = foot.index_other();
 
         // place foot 'forward' units ahead of support foot
-        let foot_offset = V2::new([
-            foot.side() * feet_distance,
-            if forward { step_length } else { 0.0 },
-        ]);
+        let forward = match intent {
+            StepIntent::Advance => step_length,
+            StepIntent::Close => 0.0,
+        };
+        let foot_offset = V2::new([foot.side() * feet_distance, forward]);
 
         let stance_pos = V2::new([
             self.current_pose.feet[stance_foot].x0(),
@@ -216,39 +239,18 @@ impl Player {
         };
     }
 
-    pub fn finish_step(&mut self, ctx: &Context) {
-        let keep_walking = ctx.state.is_pressed(input::Key::MoveForward);
-        let new_state = match self.state {
-            AnimationState::SteppingLeft if keep_walking => AnimationState::SteppingRight,
-            AnimationState::IntoIdleLeft if keep_walking => AnimationState::SteppingRight,
-            AnimationState::SteppingRight if keep_walking => AnimationState::SteppingLeft,
-            AnimationState::IntoIdleRight if keep_walking => AnimationState::SteppingLeft,
-            AnimationState::SteppingLeft => AnimationState::IntoIdleRight,
-            AnimationState::SteppingRight => AnimationState::IntoIdleLeft,
-            AnimationState::IntoIdleLeft | AnimationState::IntoIdleRight | AnimationState::Idle => {
-                AnimationState::Idle
-            }
-        };
+    pub fn finish_step(&mut self, keep_walking: bool) -> StepResult {
+        match (self.state, self.active_foot, keep_walking) {
+            // Continue walking → alternate foot
+            (AnimationState::Stepping, Some(foot), true) => StepResult::Advance(foot.other()),
 
-        if new_state != self.state {
-            self.state = new_state;
-            match new_state {
-                AnimationState::SteppingLeft => {
-                    self.step(ctx, Foot::Left, true);
-                }
-                AnimationState::SteppingRight => {
-                    self.step(ctx, Foot::Right, true);
-                }
-                AnimationState::IntoIdleLeft => {
-                    self.step(ctx, Foot::Left, false);
-                }
-                AnimationState::IntoIdleRight => {
-                    self.step(ctx, Foot::Right, false);
-                }
-                AnimationState::Idle => {
-                    self.idle();
-                }
-            }
+            // Stop walking → close stance with trailing foot
+            (AnimationState::Stepping, Some(foot), false) => StepResult::Close(foot.other()),
+
+            // Closing step finished → fully idle
+            (AnimationState::Closing, _, _) => StepResult::Idle,
+
+            _ => StepResult::Idle,
         }
     }
 
@@ -264,12 +266,7 @@ impl Component for Player {
         let dt = ctx.dt_secs();
         self.phase_progress += dt;
 
-        let t = self.phase_progress * self.step_speed;
-        if t >= 1.0 {
-            self.finish_step(ctx);
-        }
-        let t = self.phase_progress * self.step_speed;
-
+        let move_forward = ctx.state.is_pressed(input::Key::MoveForward);
         if ctx.state.is_pressed(input::Key::TurnLeft) {
             self.rotation -= TURN_SPEED * dt;
         }
@@ -277,21 +274,46 @@ impl Component for Player {
             self.rotation += TURN_SPEED * dt;
         }
 
-        match self.state {
-            AnimationState::Idle => {
-                if ctx.state.is_pressed(input::Key::MoveForward) {
-                    self.state = AnimationState::SteppingLeft;
-                    self.step(ctx, Foot::Left, true);
+        let mut phase = self.phase_progress * self.step_speed;
+        if phase >= 1.0 {
+            phase = 0.0;
+
+            let res = self.finish_step(move_forward);
+            match res {
+                StepResult::Idle => {
+                    self.state = AnimationState::Idle;
+                    self.active_foot = None;
+                    self.idle();
+                }
+
+                StepResult::Advance(foot) => {
+                    self.state = AnimationState::Stepping;
+                    self.active_foot = Some(foot);
+                    self.step(ctx, foot, StepIntent::Advance);
+                }
+
+                StepResult::Close(foot) => {
+                    self.state = AnimationState::Closing;
+                    self.active_foot = Some(foot);
+                    self.step(ctx, foot, StepIntent::Close);
                 }
             }
-            AnimationState::IntoIdleRight
-            | AnimationState::IntoIdleLeft
-            | AnimationState::SteppingLeft
-            | AnimationState::SteppingRight => {
-                // Interpolate position
-                let start = &self.start_pose;
-                let target = &self.target_pose;
-                self.current_pose = start.lerp(target, t);
+        }
+
+        if self.state == AnimationState::Idle && move_forward {
+            self.state = AnimationState::Stepping;
+            self.active_foot = Some(Foot::Left);
+            self.step(ctx, Foot::Left, StepIntent::Advance);
+            phase = 0.0;
+        }
+
+        match self.state {
+            AnimationState::Idle => {
+                self.current_pose = self.target_pose.clone();
+            }
+            AnimationState::Stepping | AnimationState::Closing => {
+                let t = phase.clamp(0.0, 1.0);
+                self.current_pose = self.start_pose.lerp(&self.target_pose, t);
             }
         }
 
