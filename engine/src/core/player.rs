@@ -101,19 +101,64 @@ pub enum StepResult {
 }
 
 // ----------------------------------------------------------------------------
+#[derive(Debug, Clone)]
+pub struct StepAnimation {
+    pub foot: Foot,
+    pub intent: StepIntent,
+    pub foot_start: V3,
+    pub foot_target: V3,
+    pub foot_control: V3, // Bézier midpoint
+    pub body_bob_height: f32,
+    pub toe_roll_max: f32, // radians
+}
+
+// ----------------------------------------------------------------------------
 #[derive(Debug)]
 pub struct Player {
     pub objects: [RenderObject; 4],
     pub rotation: R2,
     pub position: V2,
     pub state: AnimationState,
-    pub active_foot: Option<Foot>,
+    pub active_step: Option<StepAnimation>,
     pub current_pose: Pose,
     pub start_pose: Pose,
     pub target_pose: Pose,
     pub step_speed: f32,
     pub phase_progress: f32,
     pub skeleton: Skeleton,
+}
+
+// ----------------------------------------------------------------------------
+fn bezier_quad(p0: V3, p1: V3, p2: V3, t: f32) -> V3 {
+    let u = 1.0 - t;
+    u * u * p0 + 2.0 * u * t * p1 + t * t * p2
+}
+
+// ----------------------------------------------------------------------------
+pub fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
+    if edge0 == edge1 {
+        return 0.0; // Avoid division by zero
+    }
+    let t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+// ----------------------------------------------------------------------------
+fn body_bob(t: f32) -> f32 {
+    // Smooth compression then rise, peaks at mid-step
+    let x = 2.0 * t - 1.0;
+    1.0 - x * x
+}
+
+// ----------------------------------------------------------------------------
+fn toe_roll(t: f32) -> f32 {
+    if t < 0.5 {
+        // heel down quickly
+        smoothstep(0.0, 0.5, t)
+    } else {
+        // push off slower
+        1.0 - smoothstep(0.5, 1.0, t)
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -169,7 +214,7 @@ impl Player {
             rotation: R2::default(),
             position: V2::default(),
             state: AnimationState::Idle,
-            active_foot: None,
+            active_step: None,
             current_pose: Pose::default(),
             start_pose: Pose::default(),
             target_pose: Pose::default(),
@@ -181,7 +226,7 @@ impl Player {
                 feet_height: 0.1,
                 feet_distance: 0.4,
                 step_length: 0.8,
-                step_height: 0.1,
+                step_height: 0.3,
             },
         }
     }
@@ -199,7 +244,7 @@ impl Player {
             feet_height,
             feet_distance,
             step_length,
-            ..
+            step_height,
         } = self.skeleton;
 
         self.phase_progress = 0.0;
@@ -209,9 +254,9 @@ impl Player {
         let stance_foot = foot.index_other();
 
         // place foot 'forward' units ahead of support foot
-        let forward = match intent {
-            StepIntent::Advance => step_length,
-            StepIntent::Close => 0.0,
+        let (forward, lift, bob, toe_roll_max) = match intent {
+            StepIntent::Advance => (step_length, step_height, 0.04, 0.3),
+            StepIntent::Close => (0.0, 0.4 * step_height, 0.02, 0.1),
         };
         let foot_offset = V2::new([foot.side() * feet_distance, forward]);
 
@@ -229,8 +274,22 @@ impl Player {
                 foot_pos.x1() + self.current_pose.feet[stance_foot].x2(),
             ]);
 
+        let start = self.current_pose.feet[swing_foot];
+        let target = V3::new([foot_pos.x0(), height + feet_height, foot_pos.x1()]);
+        let control = 0.5 * (start + target) + V3::new([0.0, lift, 0.0]);
+
         let mut feet = self.current_pose.feet;
-        feet[swing_foot] = V3::new([foot_pos.x0(), height + feet_height, foot_pos.x1()]);
+        feet[swing_foot] = target;
+
+        self.active_step = Some(StepAnimation {
+            foot,
+            intent,
+            foot_start: start,
+            foot_target: target,
+            foot_control: control,
+            body_bob_height: bob,
+            toe_roll_max,
+        });
 
         self.target_pose = Pose {
             body: V3::new([body_pos.x0(), height + body_height, body_pos.x1()]),
@@ -240,12 +299,12 @@ impl Player {
     }
 
     pub fn finish_step(&mut self, keep_walking: bool) -> StepResult {
-        match (self.state, self.active_foot, keep_walking) {
+        match (self.state, &self.active_step, keep_walking) {
             // Continue walking → alternate foot
-            (AnimationState::Stepping, Some(foot), true) => StepResult::Advance(foot.other()),
+            (AnimationState::Stepping, Some(step), true) => StepResult::Advance(step.foot.other()),
 
             // Stop walking → close stance with trailing foot
-            (AnimationState::Stepping, Some(foot), false) => StepResult::Close(foot.other()),
+            (AnimationState::Stepping, Some(step), false) => StepResult::Close(step.foot.other()),
 
             // Closing step finished → fully idle
             (AnimationState::Closing, _, _) => StepResult::Idle,
@@ -282,19 +341,17 @@ impl Component for Player {
             match res {
                 StepResult::Idle => {
                     self.state = AnimationState::Idle;
-                    self.active_foot = None;
+                    self.active_step = None;
                     self.idle();
                 }
 
                 StepResult::Advance(foot) => {
                     self.state = AnimationState::Stepping;
-                    self.active_foot = Some(foot);
                     self.step(ctx, foot, StepIntent::Advance);
                 }
 
                 StepResult::Close(foot) => {
                     self.state = AnimationState::Closing;
-                    self.active_foot = Some(foot);
                     self.step(ctx, foot, StepIntent::Close);
                 }
             }
@@ -302,18 +359,32 @@ impl Component for Player {
 
         if self.state == AnimationState::Idle && move_forward {
             self.state = AnimationState::Stepping;
-            self.active_foot = Some(Foot::Left);
             self.step(ctx, Foot::Left, StepIntent::Advance);
             phase = 0.0;
         }
 
+        let mut feet_rot = [0.0, 0.0];
         match self.state {
             AnimationState::Idle => {
                 self.current_pose = self.target_pose.clone();
             }
             AnimationState::Stepping | AnimationState::Closing => {
                 let t = phase.clamp(0.0, 1.0);
-                self.current_pose = self.start_pose.lerp(&self.target_pose, t);
+                let mut pose = self.start_pose.lerp(&self.target_pose, t);
+
+                if let Some(step) = &self.active_step {
+                    let idx = step.foot.index_self();
+                    pose.feet[idx] =
+                        bezier_quad(step.foot_start, step.foot_control, step.foot_target, t);
+
+                    feet_rot[idx] = step.toe_roll_max * toe_roll(t);
+
+                    let bob = step.body_bob_height * body_bob(t);
+                    pose.body += V3::new([0.0, bob, 0.0]);
+                    pose.head += V3::new([0.0, bob * 0.8, 0.0]); // slight damping looks natural                
+                }
+
+                self.current_pose = pose;
             }
         }
 
@@ -349,7 +420,13 @@ impl Component for Player {
         let rotation = V4::new([0.0, rotation, 0.0, 0.0]);
         self.objects[0].transform.rotation = rotation;
         self.objects[1].transform.rotation = rotation;
+
+        let rotation = self.rotation.get();
+        let rotation = V4::new([feet_rot[0], rotation, 0.0, 0.0]);
         self.objects[2].transform.rotation = rotation;
+
+        let rotation = self.rotation.get();
+        let rotation = V4::new([feet_rot[1], rotation, 0.0, 0.0]);
         self.objects[3].transform.rotation = rotation;
         Ok(())
     }
