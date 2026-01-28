@@ -144,13 +144,6 @@ impl Player {
     }
 
     pub fn step(&mut self, ctx: &Context, foot: Foot, forward: Option<f32>) {
-        self.state = match (foot, forward) {
-            (Foot::Left, Some(_)) => AnimationState::SteppingLeft,
-            (Foot::Right, Some(_)) => AnimationState::SteppingRight,
-            (Foot::Left, None) => AnimationState::IntoIdleLeft,
-            (Foot::Right, None) => AnimationState::IntoIdleRight,
-        };
-
         self.step_progress = 0.0;
         self.start_pose = self.current_pose.clone();
 
@@ -190,12 +183,11 @@ impl Player {
             if self.state == AnimationState::SteppingLeft
                 || self.state == AnimationState::IntoIdleLeft
             {
+                self.state = AnimationState::SteppingRight;
                 self.step(ctx, Foot::Right, Some(self.step_length));
                 return;
-            }
-            if self.state == AnimationState::SteppingRight
-                || self.state == AnimationState::IntoIdleRight
-            {
+            } else {
+                self.state = AnimationState::SteppingLeft;
                 self.step(ctx, Foot::Left, Some(self.step_length));
                 return;
             }
@@ -204,20 +196,17 @@ impl Player {
         // Transition to idle
         match self.state {
             AnimationState::SteppingLeft => {
+                self.state = AnimationState::IntoIdleRight;
                 self.step(ctx, Foot::Right, None);
-                return;
             }
             AnimationState::SteppingRight => {
+                self.state = AnimationState::IntoIdleLeft;
                 self.step(ctx, Foot::Left, None);
-                return;
             }
-            AnimationState::IntoIdleRight | AnimationState::IntoIdleLeft => {
+            _ => {
                 self.idle();
-                return;
             }
-            _ => {}
         }
-        self.step_progress = 0.0;
     }
 
     pub fn idle(&mut self) {
@@ -254,6 +243,7 @@ impl Component for Player {
         match self.state {
             AnimationState::Idle => {
                 if ctx.state.is_pressed(input::Key::MoveForward) {
+                    self.state = AnimationState::SteppingLeft;
                     self.step(ctx, Foot::Left, Some(self.step_length));
                 }
             }
