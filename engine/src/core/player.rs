@@ -105,9 +105,11 @@ pub enum StepResult {
 pub struct StepAnimation {
     pub foot: Foot,
     pub intent: StepIntent,
-    pub start: V3,
-    pub target: V3,
-    pub control: V3, // Bézier midpoint
+    pub foot_start: V3,
+    pub foot_target: V3,
+    pub foot_control: V3, // Bézier midpoint
+    pub body_bob_height: f32,
+    pub toe_roll_max: f32, // radians
 }
 
 // ----------------------------------------------------------------------------
@@ -130,6 +132,33 @@ pub struct Player {
 fn bezier_quad(p0: V3, p1: V3, p2: V3, t: f32) -> V3 {
     let u = 1.0 - t;
     u * u * p0 + 2.0 * u * t * p1 + t * t * p2
+}
+
+// ----------------------------------------------------------------------------
+pub fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
+    if edge0 == edge1 {
+        return 0.0; // Avoid division by zero
+    }
+    let t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+// ----------------------------------------------------------------------------
+fn body_bob(t: f32) -> f32 {
+    // Smooth compression then rise, peaks at mid-step
+    let x = 2.0 * t - 1.0;
+    1.0 - x * x
+}
+
+// ----------------------------------------------------------------------------
+fn toe_roll(t: f32) -> f32 {
+    if t < 0.5 {
+        // heel down quickly
+        smoothstep(0.0, 0.5, t)
+    } else {
+        // push off slower
+        1.0 - smoothstep(0.5, 1.0, t)
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -225,9 +254,9 @@ impl Player {
         let stance_foot = foot.index_other();
 
         // place foot 'forward' units ahead of support foot
-        let (forward, lift) = match intent {
-            StepIntent::Advance => (step_length, step_height),
-            StepIntent::Close => (0.0, 0.4 * step_height),
+        let (forward, lift, bob, toe_roll_max) = match intent {
+            StepIntent::Advance => (step_length, step_height, 0.04, 0.3),
+            StepIntent::Close => (0.0, 0.4 * step_height, 0.02, 0.1),
         };
         let foot_offset = V2::new([foot.side() * feet_distance, forward]);
 
@@ -255,9 +284,11 @@ impl Player {
         self.active_step = Some(StepAnimation {
             foot,
             intent,
-            start,
-            target,
-            control,
+            foot_start: start,
+            foot_target: target,
+            foot_control: control,
+            body_bob_height: bob,
+            toe_roll_max,
         });
 
         self.target_pose = Pose {
@@ -342,7 +373,14 @@ impl Component for Player {
 
                 if let Some(step) = &self.active_step {
                     let idx = step.foot.index_self();
-                    pose.feet[idx] = bezier_quad(step.start, step.control, step.target, t);
+                    pose.feet[idx] =
+                        bezier_quad(step.foot_start, step.foot_control, step.foot_target, t);
+
+                    //pose.feet_rot[idx] = step.toe_roll_max * toe_roll(t);
+
+                    let bob = step.body_bob_height * body_bob(t);
+                    pose.body += V3::new([0.0, bob, 0.0]);
+                    pose.head += V3::new([0.0, bob * 0.8, 0.0]); // slight damping looks natural                
                 }
 
                 self.current_pose = pose;

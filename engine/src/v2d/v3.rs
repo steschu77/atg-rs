@@ -1,7 +1,7 @@
 use super::float_eq::float_eq_rel;
 use super::v2::V2;
 use super::v4::V4;
-use std::ops::{Add, Mul, Neg, Sub};
+use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 // ----------------------------------------------------------------------------
 #[derive(Debug, Copy, Clone)]
@@ -92,6 +92,33 @@ impl Neg for V3 {
 
     fn neg(self) -> Self {
         V3::new([-self.x0(), -self.x1(), -self.x2()])
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl AddAssign for V3 {
+    fn add_assign(&mut self, rhs: Self) {
+        self.m[0] += rhs.x0();
+        self.m[1] += rhs.x1();
+        self.m[2] += rhs.x2();
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl SubAssign for V3 {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.m[0] -= rhs.x0();
+        self.m[1] -= rhs.x1();
+        self.m[2] -= rhs.x2();
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl MulAssign<f32> for V3 {
+    fn mul_assign(&mut self, s: f32) {
+        self.m[0] *= s;
+        self.m[1] *= s;
+        self.m[2] *= s;
     }
 }
 
