@@ -42,8 +42,8 @@ impl GlMSDFTexPipeline {
 
     pub fn create_mesh(&self, vertices: &[Vertex]) -> Result<GlMesh> {
         let gl = &self.gl;
-        let vao = gl_graphics::create_vertex_array(gl);
-        let _vbo = unsafe {
+        let vao_vertices = gl_graphics::create_vertex_array(gl);
+        let vbo_vertices = unsafe {
             gl_graphics::create_buffer(
                 gl,
                 gl::ARRAY_BUFFER,
@@ -56,6 +56,7 @@ impl GlMSDFTexPipeline {
         let pos_ofs = std::mem::offset_of!(Vertex, pos) as gl::GLint;
         let tex_ofs = std::mem::offset_of!(Vertex, tex) as gl::GLint;
 
+        // Define how the vertex attributes are laid out in the VBO
         unsafe {
             gl.EnableVertexAttribArray(0); // position
             gl.VertexAttribPointer(0, 2, gl::FLOAT, gl::FALSE, stride, pos_ofs as *const _);
@@ -64,7 +65,8 @@ impl GlMSDFTexPipeline {
         }
 
         Ok(GlMesh {
-            vao_vertices: vec![vao],
+            vao_vertices,
+            vbo_vertices,
             vbo_indices: 0,
             num_indices: 0,
             num_vertices: vertices.len() as gl::GLsizei,
@@ -87,9 +89,9 @@ impl GlPipeline for GlMSDFTexPipeline {
             gl.UseProgram(self.shader);
             gl.ActiveTexture(gl::TEXTURE0);
             gl.BindTexture(gl::TEXTURE_2D, texture);
-            gl.BindVertexArray(mesh.vao_vertices[0]);
             gl.UniformMatrix4fv(self.uid_model, 1, gl::FALSE, uniforms.model.as_ptr());
             gl.UniformMatrix4fv(self.uid_view, 1, gl::FALSE, uniforms.camera.as_ptr());
+            gl.BindVertexArray(mesh.vao_vertices);
             gl.DrawArrays(mesh.primitive_type, 0, mesh.num_vertices);
         }
         Ok(())

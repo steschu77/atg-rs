@@ -166,8 +166,8 @@ impl GlColoredPipeline {
         is_debug: bool,
     ) -> Result<GlMesh> {
         let gl = &self.gl;
-        let vao = gl_graphics::create_vertex_array(gl);
-        let _vbo = unsafe {
+        let vao_vertices = gl_graphics::create_vertex_array(gl);
+        let vbo_vertices = unsafe {
             gl_graphics::create_buffer(
                 gl,
                 gl::ARRAY_BUFFER,
@@ -181,7 +181,6 @@ impl GlColoredPipeline {
         let norm_ofs = std::mem::offset_of!(Vertex, n) as gl::GLint;
 
         unsafe {
-            gl.UseProgram(self.shader);
             gl.EnableVertexAttribArray(0); // position
             gl.EnableVertexAttribArray(1); // normal
             gl.VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, stride, pos_ofs as *const _);
@@ -203,7 +202,8 @@ impl GlColoredPipeline {
         };
 
         Ok(GlMesh {
-            vao_vertices: vec![vao],
+            vao_vertices,
+            vbo_vertices,
             vbo_indices,
             num_indices,
             num_vertices: vertices.len() as gl::GLsizei,
@@ -211,18 +211,6 @@ impl GlColoredPipeline {
             has_indices: !indices.is_empty(),
             is_debug,
         })
-    }
-
-    pub fn delete_bindings(&self, bindings: &GlMesh) {
-        let gl = &self.gl;
-        unsafe {
-            for vao in &bindings.vao_vertices {
-                gl.DeleteVertexArrays(1, vao);
-            }
-            if bindings.vbo_indices != 0 {
-                gl.DeleteBuffers(1, &bindings.vbo_indices);
-            }
-        }
     }
 
     pub fn create_cube(&self) -> Result<GlMesh> {
@@ -251,7 +239,7 @@ impl GlPipeline for GlColoredPipeline {
         };
         unsafe {
             gl.UseProgram(self.shader);
-            gl.BindVertexArray(bindings.vao_vertices[0]);
+            gl.BindVertexArray(bindings.vao_vertices);
             gl.UniformMatrix4fv(self.uid_model, 1, gl::FALSE, uniforms.model.as_ptr());
             gl.UniformMatrix4fv(self.uid_camera, 1, gl::FALSE, uniforms.camera.as_ptr());
             gl.UniformMatrix4fv(self.uid_view, 1, gl::FALSE, uniforms.view.as_ptr());
@@ -266,7 +254,6 @@ impl GlPipeline for GlColoredPipeline {
             gl.Uniform3fv(self.uid_view_pos, 1, uniforms.view_pos.as_ptr());
             gl.Uniform3fv(self.uid_light_color, 1, uniforms.light_color.as_ptr());
             gl.Uniform3fv(self.uid_object_color, 1, color.as_ptr());
-            gl.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, bindings.vbo_indices);
 
             if !bindings.is_debug {
                 gl.DrawElements(

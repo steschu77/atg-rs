@@ -24,7 +24,8 @@ impl From<GlPipelineType> for usize {
 // ----------------------------------------------------------------------------
 #[derive(Debug, Clone)]
 pub struct GlMesh {
-    pub vao_vertices: Vec<gl::GLuint>,
+    pub vao_vertices: gl::GLuint,
+    pub vbo_vertices: gl::GLuint,
     pub vbo_indices: gl::GLuint,
     pub num_indices: gl::GLsizei,
     pub num_vertices: gl::GLsizei,
