@@ -35,6 +35,17 @@ pub struct GlMesh {
 }
 
 // ----------------------------------------------------------------------------
+pub fn delete_mesh(gl: &gl::OpenGlFunctions, mesh: &GlMesh) {
+    unsafe {
+        if mesh.vbo_indices != 0 {
+            gl.DeleteBuffers(1, &mesh.vbo_indices);
+        }
+        gl.DeleteBuffers(1, &mesh.vbo_vertices);
+        gl.DeleteVertexArrays(1, &mesh.vao_vertices);
+    }
+}
+
+// ----------------------------------------------------------------------------
 #[derive(Debug, Clone)]
 pub enum GlMaterial {
     Texture { texture: gl::GLuint },
@@ -79,7 +90,7 @@ impl GlMeshes {
     }
 
     // ------------------------------------------------------------------------
-    pub fn insert_mesh(&mut self, mesh: GlMesh) -> usize {
+    pub fn insert(&mut self, mesh: GlMesh) -> usize {
         if let Some(id) = self.free_ids.pop() {
             assert!(id < self.meshes.len());
             assert!(self.meshes[id].is_none());
@@ -92,12 +103,15 @@ impl GlMeshes {
     }
 
     // ------------------------------------------------------------------------
-    pub fn remove_mesh(&mut self, id: usize) {
-        if let Some(mesh) = self.meshes.get_mut(id) {
-            if mesh.is_some() {
-                *mesh = None;
-                self.free_ids.push(id);
-            }
+    pub fn remove(&mut self, id: usize) -> Option<GlMesh> {
+        let mesh = self.meshes.get_mut(id);
+        if let Some(m) = mesh
+            && m.is_some()
+        {
+            self.free_ids.push(id);
+            m.take()
+        } else {
+            None
         }
     }
 
@@ -126,7 +140,7 @@ impl GlMaterials {
     }
 
     // ------------------------------------------------------------------------
-    pub fn insert_material(&mut self, material: GlMaterial) -> usize {
+    pub fn insert(&mut self, material: GlMaterial) -> usize {
         if let Some(id) = self.free_ids.pop() {
             assert!(id < self.materials.len());
             assert!(self.materials[id].is_none());
@@ -139,12 +153,15 @@ impl GlMaterials {
     }
 
     // ------------------------------------------------------------------------
-    pub fn remove_mesh(&mut self, id: usize) {
-        if let Some(mesh) = self.materials.get_mut(id) {
-            if mesh.is_some() {
-                *mesh = None;
-                self.free_ids.push(id);
-            }
+    pub fn remove(&mut self, id: usize) -> Option<GlMaterial> {
+        let material = self.materials.get_mut(id);
+        if let Some(m) = material
+            && m.is_some()
+        {
+            self.free_ids.push(id);
+            m.take()
+        } else {
+            None
         }
     }
 

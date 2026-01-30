@@ -142,6 +142,21 @@ pub unsafe fn create_buffer(
 }
 
 // --------------------------------------------------------------------------------
+/// # Safety
+/// The caller must ensure that `data` points to valid memory of at least `size` bytes.
+pub unsafe fn update_buffer(
+    gl: &gl::OpenGlFunctions,
+    vbo: gl::GLuint,
+    data: *const GLvoid,
+    size: usize,
+) {
+    unsafe {
+        gl.BindBuffer(gl::ARRAY_BUFFER, vbo);
+        gl.BufferData(gl::ARRAY_BUFFER, size, data, gl::STATIC_DRAW);
+    }
+}
+
+// --------------------------------------------------------------------------------
 pub fn create_vertex_buffer(gl: &gl::OpenGlFunctions, data: &[gl::GLfloat]) -> gl::GLuint {
     unsafe {
         let mut vbo = 0;

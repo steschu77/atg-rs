@@ -18,6 +18,7 @@ pub enum Error {
     InvalidContext,
     InvalidDate,
     InvalidTime,
+    InvalidMeshId,
     UnderSubscribedTree,
     OverSubscribedTree,
     InvalidPng,

@@ -75,6 +75,18 @@ impl GlMSDFTexPipeline {
             is_debug: false,
         })
     }
+
+    pub fn update_mesh(&self, mesh: &GlMesh, vertices: &[Vertex]) {
+        let gl = &self.gl;
+        unsafe {
+            gl_graphics::update_buffer(
+                gl,
+                mesh.vbo_vertices,
+                vertices.as_ptr() as *const _,
+                std::mem::size_of_val(vertices),
+            );
+        }
+    }
 }
 
 // ----------------------------------------------------------------------------
