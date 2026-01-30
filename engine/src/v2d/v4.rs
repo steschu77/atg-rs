@@ -1,5 +1,6 @@
 use super::float_eq::float_eq_rel;
 use super::v3::V3;
+use std::fmt;
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 // ----------------------------------------------------------------------------
@@ -12,6 +13,20 @@ pub struct V4 {
 impl Default for V4 {
     fn default() -> Self {
         V4::zero()
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl fmt::Display for V4 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "V4({:.2}, {:.2}, {:.2}, {:.2})",
+            self.x0(),
+            self.x1(),
+            self.x2(),
+            self.x3()
+        )
     }
 }
 

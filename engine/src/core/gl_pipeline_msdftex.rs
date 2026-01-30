@@ -134,7 +134,7 @@ void main() {
     // gl_Position = camera * model * vec4(a_pos, 0.0, 1.0);
     vec4 world_pos = vec4(model[3][0], model[3][1], model[3][2], model[3][3]);
     vec4 view_pos = camera * world_pos;
-    view_pos.xy += a_pos.xy * 1.01;
+    view_pos.xy += a_pos.xy * 0.5;
     gl_Position = view_pos;
     v_tex = a_tex;
 }"#;

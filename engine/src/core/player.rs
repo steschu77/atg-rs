@@ -314,7 +314,8 @@ impl Player {
     }
 
     pub fn position(&self) -> V4 {
-        V4::new([self.position.x0(), 1.8, self.position.x1(), 1.0])
+        let pos = self.current_pose.body;
+        V4::new([pos.x0(), pos.x1(), pos.x2(), 1.0])
     }
 }
 
