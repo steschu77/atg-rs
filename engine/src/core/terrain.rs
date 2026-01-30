@@ -1,4 +1,4 @@
-use crate::core::gl_pipeline_colored::Vertex;
+use crate::core::gl_pipeline_colored::{self, Vertex};
 use crate::core::gl_renderer::RenderContext;
 use crate::error::Result;
 use crate::v2d::v3::V3;
@@ -131,6 +131,44 @@ impl Terrain {
         let h0 = h00 * (1.0 - fx) + h10 * fx;
         let h1 = h01 * (1.0 - fx) + h11 * fx;
         h0 * (1.0 - fz) + h1 * fz
+    }
+
+    pub fn normal_at(&self, x: f32, z: f32) -> V3 {
+        // Convert world coordinates to heightmap indices
+        let hx = x * TERRAIN_RESOLUTION_INV;
+        let hz = z * TERRAIN_RESOLUTION_INV;
+
+        // Bilinear interpolation between 4 neighboring samples
+        let x0 = hx.floor() as u32;
+        let z0 = hz.floor() as u32;
+        let x1 = x0 + 1;
+        let z1 = z0 + 1;
+
+        let fx = hx.fract();
+        let fz = hz.fract();
+
+        let n00 = self.get_normal_at(x0, z0);
+        let n10 = self.get_normal_at(x1, z0);
+        let n01 = self.get_normal_at(x0, z1);
+        let n11 = self.get_normal_at(x1, z1);
+
+        // Bilinear interpolation
+        let n0 = n00 * (1.0 - fx) + n10 * fx;
+        let n1 = n01 * (1.0 - fx) + n11 * fx;
+        n0 * (1.0 - fz) + n1 * fz
+    }
+
+    pub fn create_normal_arrow_mesh(
+        &self,
+        context: &mut RenderContext,
+        x: f32,
+        z: f32,
+        length: f32,
+    ) -> Result<usize> {
+        let normal = self.normal_at(x, z);
+        let verts =
+            gl_pipeline_colored::arrow(V3::new([x, self.height_at(x, z), z]), normal, length);
+        context.create_colored_mesh(&verts, &[], true)
     }
 }
 

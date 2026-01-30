@@ -6,7 +6,7 @@ use crate::core::gl_text::create_text_mesh;
 use crate::core::{camera::Camera, input, player::Player, terrain::Terrain};
 use crate::error::Result;
 use crate::sys::opengl as gl;
-use crate::v2d::v4::V4;
+use crate::v2d::{v3::V3, v4::V4};
 use std::path::Path;
 use std::rc::Rc;
 
@@ -18,6 +18,7 @@ pub struct World {
     camera: Camera,
     debug: RenderObject,
     terrain_chunks: Vec<RenderObject>,
+    terrain_normal_arrows: Vec<RenderObject>,
     _font: gl_font::Font,
     t: std::time::Duration,
 }
@@ -29,6 +30,10 @@ impl World {
 
         let font_id = render_context.insert_material(GlMaterial::Texture {
             texture: font.texture,
+        });
+
+        let color_id = render_context.insert_material(GlMaterial::Color {
+            color: V3::new([0.0, 1.0, 0.0]), // Green arrows
         });
 
         let terrain = Terrain::default();
@@ -55,7 +60,7 @@ impl World {
         terrain_chunks.push(RenderObject {
             name: String::from("terrain_chunk_0_0"),
             transform: Transform {
-                position: V4::new([1.0, 0.0, 0.0, 1.0]),
+                position: V4::new([0.0, 0.0, 0.0, 1.0]),
                 rotation: V4::default(),
                 size: V4::new([1.0, 1.0, 1.0, 1.0]),
             },
@@ -64,6 +69,30 @@ impl World {
             material_id: 0,
             ..Default::default()
         });
+
+        let mut terrain_normal_arrows = Vec::new();
+        for x in (0..16u8).step_by(2) {
+            for z in (0..16u8).step_by(2) {
+                let mesh_id = terrain.create_normal_arrow_mesh(
+                    &mut render_context,
+                    f32::from(x) + 0.5,
+                    f32::from(z) + 0.5,
+                    1.0,
+                )?;
+                terrain_normal_arrows.push(RenderObject {
+                    name: format!("terrain_normal_arrow_{x}_{z}"),
+                    transform: Transform {
+                        position: V4::new([0.0, 0.0, 0.0, 1.0]),
+                        rotation: V4::default(),
+                        size: V4::new([1.0, 1.0, 1.0, 1.0]),
+                    },
+                    pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
+                    mesh_id,
+                    material_id: color_id,
+                    ..Default::default()
+                });
+            }
+        }
 
         let player = Player::new(&mut render_context);
 
@@ -74,6 +103,7 @@ impl World {
             player,
             debug,
             terrain_chunks,
+            terrain_normal_arrows,
             _font: font,
             t,
         })
@@ -118,6 +148,7 @@ impl World {
 
     pub fn objects(&self) -> Vec<RenderObject> {
         let mut objects = self.terrain_chunks.clone();
+        objects.extend(self.terrain_normal_arrows.iter().cloned());
         objects.extend(self.player.objects.iter().cloned());
         objects.push(self.debug.clone());
         objects
