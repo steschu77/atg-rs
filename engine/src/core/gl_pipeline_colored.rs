@@ -100,6 +100,39 @@ pub fn tetrahedron(side: f32, height: f32) -> Vec<Vertex> {
 }
 
 // ----------------------------------------------------------------------------
+// Creates a debug arrow mesh starting at 'origin', pointing in normalized 'dir'
+// direction with given 'length'. Uses tetrahedrons for the arrow shaft and head.
+pub fn arrow(origin: V3, n: V3, length: f32) -> Vec<Vertex> {
+    let mut verts = Vec::new();
+
+    let v0 = origin;
+    let v1 = origin + n * length * 0.8;
+
+    let shaft = tetrahedron(length * 0.1, length * 0.8);
+    let head = tetrahedron(length * 0.1, length * 0.2);
+
+    let x_axis = if n.x0().abs() > 0.1 {
+        V3::new([0.0, 1.0, 0.0])
+    } else {
+        V3::new([1.0, 0.0, 0.0])
+    };
+    let z_axis = n.cross(&x_axis).norm();
+    let x_axis = z_axis.cross(&n).norm();
+
+    verts.extend(shaft.iter().map(|v| Vertex {
+        pos: v0 + n * v.pos.x1() + x_axis * v.pos.x0() + z_axis * v.pos.x2(),
+        n: v.n,
+    }));
+
+    verts.extend(head.iter().map(|v| Vertex {
+        pos: v1 + n * v.pos.x1() + x_axis * v.pos.x0() + z_axis * v.pos.x2(),
+        n: v.n,
+    }));
+
+    verts
+}
+
+// ----------------------------------------------------------------------------
 fn face_normal(v0: V3, v1: V3, v2: V3) -> V3 {
     let u = v1 - v0;
     let v = v2 - v0;
@@ -275,22 +308,33 @@ impl GlPipeline for GlColoredPipeline {
             gl.Uniform3fv(self.uid_light_color, 1, uniforms.light_color.as_ptr());
             gl.Uniform3fv(self.uid_object_color, 1, color.as_ptr());
 
-            if !bindings.is_debug {
-                gl.DrawElements(
-                    bindings.primitive_type,
-                    bindings.num_indices,
-                    gl::UNSIGNED_INT,
-                    std::ptr::null(),
-                );
+            #[allow(clippy::collapsible_else_if)]
+            if bindings.has_indices {
+                if !bindings.is_debug {
+                    gl.DrawElements(
+                        bindings.primitive_type,
+                        bindings.num_indices,
+                        gl::UNSIGNED_INT,
+                        std::ptr::null(),
+                    );
+                } else {
+                    gl.PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
+                    gl.DrawElements(
+                        bindings.primitive_type,
+                        bindings.num_indices,
+                        gl::UNSIGNED_INT,
+                        std::ptr::null(),
+                    );
+                    gl.PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
+                }
             } else {
-                gl.PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
-                gl.DrawElements(
-                    bindings.primitive_type,
-                    bindings.num_indices,
-                    gl::UNSIGNED_INT,
-                    std::ptr::null(),
-                );
-                gl.PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
+                if !bindings.is_debug {
+                    gl.DrawArrays(bindings.primitive_type, 0, bindings.num_vertices);
+                } else {
+                    gl.PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
+                    gl.DrawArrays(bindings.primitive_type, 0, bindings.num_vertices);
+                    gl.PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
+                }
             }
         }
         Ok(())
