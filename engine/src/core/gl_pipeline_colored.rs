@@ -213,6 +213,26 @@ impl GlColoredPipeline {
         })
     }
 
+    pub fn update_mesh(&self, mesh: &GlMesh, vertices: &[Vertex], indices: &[u32]) {
+        let gl = &self.gl;
+        unsafe {
+            gl_graphics::update_buffer(
+                gl,
+                mesh.vbo_vertices,
+                vertices.as_ptr() as *const _,
+                std::mem::size_of_val(vertices),
+            );
+            if mesh.has_indices {
+                gl_graphics::update_buffer(
+                    gl,
+                    mesh.vbo_indices,
+                    indices.as_ptr() as *const _,
+                    std::mem::size_of_val(indices),
+                );
+            }
+        }
+    }
+
     pub fn create_cube(&self) -> Result<GlMesh> {
         let (verts, indices) = create_unit_cube_mesh();
         self.create_mesh(&verts, &indices, false)

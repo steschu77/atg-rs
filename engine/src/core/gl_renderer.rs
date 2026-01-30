@@ -6,7 +6,7 @@ use crate::core::gl_graphics::{
 use crate::core::gl_pipeline::{self, GlMaterial};
 use crate::core::gl_pipeline_colored::{self, GlColoredPipeline};
 use crate::core::gl_pipeline_msdftex::{self, GlMSDFTexPipeline};
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::sys::opengl as gl;
 use crate::v2d::{affine4x4, m4x4::M4x4, v3::V3, v4::V4};
 use std::rc::Rc;
@@ -130,6 +130,7 @@ impl IRenderer for Renderer {
 
 // ----------------------------------------------------------------------------
 pub struct RenderContext {
+    gl: Rc<gl::OpenGlFunctions>,
     colored_pipe: Rc<GlColoredPipeline>,
     msdftex_pipe: Rc<GlMSDFTexPipeline>,
     meshes: gl_pipeline::GlMeshes,
@@ -150,6 +151,7 @@ impl RenderContext {
         let materials = gl_pipeline::GlMaterials::new(&[]);
 
         Ok(RenderContext {
+            gl,
             colored_pipe: Rc::clone(&colored_pipe),
             msdftex_pipe: Rc::clone(&msdftex_pipe),
             meshes,
@@ -159,7 +161,7 @@ impl RenderContext {
     }
 
     pub fn insert_material(&mut self, material: GlMaterial) -> usize {
-        self.materials.insert_material(material)
+        self.materials.insert(material)
     }
 
     pub fn create_colored_mesh(
@@ -169,7 +171,18 @@ impl RenderContext {
         is_debug: bool,
     ) -> Result<usize> {
         let mesh = self.colored_pipe.create_mesh(vertices, indices, is_debug)?;
-        Ok(self.meshes.insert_mesh(mesh))
+        Ok(self.meshes.insert(mesh))
+    }
+
+    pub fn update_colored_mesh(
+        &mut self,
+        mesh_id: usize,
+        vertices: &[gl_pipeline_colored::Vertex],
+        indices: &[u32],
+    ) -> Result<()> {
+        let mesh = self.meshes.get(mesh_id).ok_or(Error::InvalidMeshId)?;
+        self.colored_pipe.update_mesh(mesh, vertices, indices);
+        Ok(())
     }
 
     pub fn create_msdftex_mesh(
@@ -177,19 +190,35 @@ impl RenderContext {
         vertices: &[gl_pipeline_msdftex::Vertex],
     ) -> Result<usize> {
         let mesh = self.msdftex_pipe.create_mesh(vertices)?;
-        Ok(self.meshes.insert_mesh(mesh))
+        Ok(self.meshes.insert(mesh))
+    }
+
+    pub fn update_msdftex_mesh(
+        &mut self,
+        mesh_id: usize,
+        vertices: &[gl_pipeline_msdftex::Vertex],
+    ) -> Result<()> {
+        let mesh = self.meshes.get(mesh_id).ok_or(Error::InvalidMeshId)?;
+        self.msdftex_pipe.update_mesh(mesh, vertices);
+        Ok(())
+    }
+
+    pub fn delete_mesh(&mut self, mesh_id: usize) -> Result<()> {
+        let mesh = self.meshes.remove(mesh_id).ok_or(Error::InvalidMeshId)?;
+        gl_pipeline::delete_mesh(&self.gl, &mesh);
+        Ok(())
     }
 
     pub fn create_cube(&mut self, is_debug: bool) -> Result<usize> {
         let (verts, indices) = gl_pipeline_colored::create_unit_cube_mesh();
         let mesh = self.colored_pipe.create_mesh(&verts, &indices, is_debug)?;
-        Ok(self.meshes.insert_mesh(mesh))
+        Ok(self.meshes.insert(mesh))
     }
 
     pub fn create_plane(&mut self, is_debug: bool) -> Result<usize> {
         let (verts, indices) = gl_pipeline_colored::create_plane_mesh();
         let mesh = self.colored_pipe.create_mesh(&verts, &indices, is_debug)?;
-        Ok(self.meshes.insert_mesh(mesh))
+        Ok(self.meshes.insert(mesh))
     }
 
     pub fn pipes(&self) -> &Vec<Rc<dyn gl_pipeline::GlPipeline>> {
