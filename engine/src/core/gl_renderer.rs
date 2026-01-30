@@ -8,7 +8,7 @@ use crate::core::gl_pipeline_colored::{self, GlColoredPipeline};
 use crate::core::gl_pipeline_msdftex::{self, GlMSDFTexPipeline};
 use crate::error::{Error, Result};
 use crate::sys::opengl as gl;
-use crate::v2d::{affine4x4, m4x4::M4x4, v3::V3, v4::V4};
+use crate::v2d::{affine4x4, m4x4::M4x4, q::Q, v3::V3, v4::V4};
 use std::rc::Rc;
 
 // ----------------------------------------------------------------------------
@@ -235,20 +235,39 @@ impl RenderContext {
 }
 
 // ----------------------------------------------------------------------------
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum Rotation {
+    Euler(V3),
+    Matrix(M4x4),
+    Quat(Q),
+}
+
+// ----------------------------------------------------------------------------
+impl Default for Rotation {
+    fn default() -> Self {
+        Rotation::Matrix(M4x4::identity())
+    }
+}
+
+// ----------------------------------------------------------------------------
 #[derive(Debug, Default, Copy, Clone)]
 pub struct Transform {
     pub position: V4,
-    pub rotation: V4,
+    pub rotation: Rotation,
     pub size: V4,
 }
 
 // ----------------------------------------------------------------------------
 impl From<Transform> for M4x4 {
     fn from(tx: Transform) -> Self {
-        affine4x4::translate(&tx.position)
-            * affine4x4::rotate_x1(tx.rotation.x1())
-            * affine4x4::rotate_x0(tx.rotation.x0())
-            * affine4x4::scale(&tx.size)
+        let rotation_matrix = match tx.rotation {
+            Rotation::Euler(euler) => {
+                affine4x4::rotate_x1(euler.x1()) * affine4x4::rotate_x0(euler.x0())
+            }
+            Rotation::Matrix(mat) => mat,
+            Rotation::Quat(quat) => quat.as_mat4x4(),
+        };
+        affine4x4::translate(&tx.position) * rotation_matrix * affine4x4::scale(&tx.size)
     }
 }
 

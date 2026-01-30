@@ -1,5 +1,5 @@
 use crate::core::component::{Component, Context};
-use crate::core::gl_renderer::{RenderContext, RenderObject, Transform};
+use crate::core::gl_renderer::{RenderContext, RenderObject, Rotation, Transform};
 use crate::core::input;
 use crate::error::Result;
 use crate::v2d::{r2::R2, v2::V2, v3::V3, v4::V4};
@@ -418,16 +418,16 @@ impl Component for Player {
         ]);
 
         let rotation = self.rotation.get();
-        let rotation = V4::new([0.0, rotation, 0.0, 0.0]);
+        let rotation = Rotation::Euler(V3::new([0.0, rotation, 0.0]));
         self.objects[0].transform.rotation = rotation;
         self.objects[1].transform.rotation = rotation;
 
         let rotation = self.rotation.get();
-        let rotation = V4::new([feet_rot[0], rotation, 0.0, 0.0]);
+        let rotation = Rotation::Euler(V3::new([feet_rot[0], rotation, 0.0]));
         self.objects[2].transform.rotation = rotation;
 
         let rotation = self.rotation.get();
-        let rotation = V4::new([feet_rot[1], rotation, 0.0, 0.0]);
+        let rotation = Rotation::Euler(V3::new([feet_rot[1], rotation, 0.0]));
         self.objects[3].transform.rotation = rotation;
         Ok(())
     }
