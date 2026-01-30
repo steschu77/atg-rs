@@ -35,7 +35,8 @@ impl World {
         let camera = Camera::new(V4::new([0.0, 4.0, 4.0, 1.0]), V4::new([0.0, 0.0, 0.0, 1.0]));
         let t = std::time::Duration::ZERO;
 
-        let mesh_id = create_text_mesh(&mut render_context, &font, "Debug Text: Hello, World!")?;
+        let mesh = create_text_mesh(&font, "Debug Text: Hello, World!")?;
+        let mesh_id = render_context.create_msdftex_mesh(&mesh)?;
         let debug = RenderObject {
             name: String::from("debug"),
             transform: Transform {
@@ -94,6 +95,10 @@ impl World {
         self.camera.update(&ctx)?;
         self.player.update(&ctx)?;
 
+        let player_pos = self.player.position();
+        let mesh = create_text_mesh(&self._font, &format!("{player_pos}"))?;
+        self.render_context
+            .update_msdftex_mesh(self.debug.mesh_id, &mesh)?;
         self.debug.transform.position = self.player.position();
 
         let player_forward = V4::new([

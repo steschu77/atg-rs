@@ -1,12 +1,11 @@
 use crate::core::gl_font::{Font, FontGlyph};
 use crate::core::gl_pipeline_msdftex::{Vertex, add_plane_quad};
-use crate::core::gl_renderer::RenderContext;
 use crate::error::Result;
 use crate::util::utf8::next_code_point;
 use crate::v2d::v2::V2;
 
 // ----------------------------------------------------------------------------
-pub fn create_text_mesh(context: &mut RenderContext, font: &Font, text: &str) -> Result<usize> {
+pub fn create_text_mesh(font: &Font, text: &str) -> Result<Vec<Vertex>> {
     let mut iter = text.as_bytes().iter();
     let mut pos = V2::new([0.0, 0.0]);
     let mut verts = Vec::new();
@@ -17,12 +16,7 @@ pub fn create_text_mesh(context: &mut RenderContext, font: &Font, text: &str) ->
         }
     }
 
-    let mesh_id = context.create_msdftex_mesh(&verts)?;
-    log::info!(
-        "Created text mesh for \"{text}\" with {len} vertices, mesh: {mesh_id}",
-        len = verts.len(),
-    );
-    Ok(mesh_id)
+    Ok(verts)
 }
 
 // ------------------------------------------------------------------------
