@@ -31,13 +31,20 @@ jobs:
       - run: cargo clippy -- -D warnings
 
   fmt:
-    name: Format check
+    name: Check Formatting Rules
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
-      - run: rustup component add rustfmt
-      - run: cargo fmt -- --check
+
+      - name: Check merge commits
+        uses: ./.github/actions/reject-merge-commits
+
+      - name: Add rustfmt
+        run: rustup component add rustfmt
+
+      - name: Check formatting
+        run: cargo fmt -- --check
 
   test:
     name: Test (${{ matrix.os }})
@@ -52,3 +59,4 @@ jobs:
 
       - name: Run tests
         run: cargo test --verbose
+
