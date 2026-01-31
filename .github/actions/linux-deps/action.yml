@@ -6,4 +6,5 @@ runs:
   steps:
     - name: Install system packages
       shell: bash
-      run: sudo apt-get install -y libglx-dev libgl-dev libegl-dev
+      run: |
+        sudo apt-get update && sudo apt-get install -y libglx-dev libgl-dev libegl-dev
