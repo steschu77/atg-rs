@@ -19,10 +19,11 @@ impl Default for Q {
 // ----------------------------------------------------------------------------
 impl PartialEq for Q {
     fn eq(&self, rhs: &Self) -> bool {
-        float_eq_rel(self.x0(), rhs.x0())
-            && float_eq_rel(self.x1(), rhs.x1())
-            && float_eq_rel(self.x2(), rhs.x2())
-            && float_eq_rel(self.x3(), rhs.x3())
+        let dot = self.x0() * rhs.x0()
+            + self.x1() * rhs.x1()
+            + self.x2() * rhs.x2()
+            + self.x3() * rhs.x3();
+        float_eq_rel(dot.abs(), 1.0)
     }
 }
 
@@ -309,6 +310,36 @@ impl Q {
         let (s, c) = half.sin_cos();
         Q::new([axis.x0() * s, axis.x1() * s, axis.x2() * s, c])
     }
+
+    // ------------------------------------------------------------------------
+    #[allow(clippy::collapsible_else_if)]
+    pub fn from_mat3(m: &M3x3) -> Self {
+        let m00 = m.x00();
+        let m11 = m.x11();
+        let m22 = m.x22();
+
+        #[rustfmt::skip]
+        let (t, q) = if m22 < 0.0 {
+            if m00 > m11 {
+                let t = 1.0 + m00 - m11 - m22;
+                (t, Q::new([t, m.x10() + m.x01(), m.x02() + m.x20(), m.x21() - m.x12()]))
+            } else {
+                let t = 1.0 - m00 + m11 - m22;
+                (t, Q::new([m.x10() + m.x01(), t, m.x21() + m.x12(), m.x02() - m.x20()]))
+            }
+        } else {
+            if m00 < -m11 {
+                let t = 1.0 - m00 - m11 + m22;
+                (t, Q::new([m.x02() + m.x20(), m.x21() + m.x12(), t, m.x10() - m.x01()]))
+            } else {
+                let t = 1.0 + m00 + m11 + m22;
+                (t, Q::new([m.x21() - m.x12(), m.x02() - m.x20(), m.x10() - m.x01(), t]))
+            }
+        };
+
+        let scale = 0.5 / t.sqrt();
+        q * scale
+    }
 }
 
 #[cfg(test)]
@@ -343,12 +374,88 @@ mod test {
         assert_eq!(r, v);
     }
 
-    // #[test]
-    // fn test_rotation_from_to() {
-    //     let a = V3::new([1.0, 1.0, 1.0]);
-    //     let b = V3::new([-1.0, -1.0, -1.0]);
-    //     let q = super::rotation_from_to(a, b);
-    //     let a_prime = q.rotate(a);
-    //     assert_eq!(a_prime, a);
-    // }
+    #[test]
+    fn mat3_to_quat_identity() {
+        let m = M3x3::identity();
+        let q = Q::from_mat3(&m);
+        let expected = Q::new([0.0, 0.0, 0.0, 1.0]);
+        assert_eq!(q, expected);
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn mat3_to_quat_rot_x_90() {
+        let s = 0.5_f32.sqrt();
+        let m = M3x3::new([
+            1.0,  0.0, 0.0,
+            0.0,  0.0, 1.0,
+            0.0, -1.0, 0.0
+        ]);
+        let q = Q::from_mat3(&m);
+        let expected = Q::new([s, 0.0, 0.0, s]);
+        assert_eq!(q, expected);
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn mat3_to_quat_rot_y_90() {
+        let s = 0.5_f32.sqrt();
+        let m = M3x3::new([
+            0.0, 0.0, -1.0,
+            0.0, 1.0,  0.0,
+            1.0, 0.0,  0.0
+        ]);
+        let q = Q::from_mat3(&m);
+        let expected = Q::new([0.0, s, 0.0, s]);
+        assert_eq!(q, expected);
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn mat3_to_quat_rot_z_90() {
+        let s = 0.5_f32.sqrt();
+        let m = M3x3::new([
+             0.0, 1.0, 0.0,
+            -1.0, 0.0, 0.0,
+             0.0, 0.0, 1.0
+        ]);
+        let q = Q::from_mat3(&m);
+        let expected = Q::new([0.0, 0.0, s, s]);
+        assert_eq!(q, expected);
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn mat3_to_quat_rot_180_x() {
+        let m = M3x3::new([
+            1.0,  0.0,  0.0,
+            0.0, -1.0,  0.0,
+            0.0,  0.0, -1.0
+        ]);
+        let q = Q::from_mat3(&m);
+        let expected = Q::new([1.0, 0.0, 0.0, 0.0]);
+        assert_eq!(q, expected);
+    }
+
+    #[test]
+    fn mat3_quat_roundtrip() {
+        let q = Q::new([0.3, 0.4, 0.0, 0.8]).norm();
+        let r = Q::from_mat3(&q.as_mat3x3());
+
+        let v = V3::new([1.0, 2.0, 3.0]);
+        let v_rot_q = q.rotate(&v);
+        let v_rot_r = r.rotate(&v);
+        assert_eq!(v_rot_q, v_rot_r);
+    }
+
+    #[test]
+    fn mat3_quat_rotate() {
+        let q = Q::new([0.3, 0.4, 0.0, 0.8]).norm();
+        let m = q.as_mat3x3();
+
+        let v = V3::new([1.0, 2.0, 3.0]);
+        let v_rot_q = q.rotate(&v);
+        let v_rot_m = m * v;
+        assert_eq!(v_rot_q, v_rot_m);
+    }
 }
