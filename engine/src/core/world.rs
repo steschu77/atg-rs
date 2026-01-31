@@ -1,7 +1,7 @@
 use crate::core::component::{Component, Context};
 use crate::core::gl_font;
 use crate::core::gl_pipeline::{self, GlMaterial};
-use crate::core::gl_renderer::{RenderContext, RenderObject, Transform};
+use crate::core::gl_renderer::{RenderContext, RenderObject, Rotation, Transform};
 use crate::core::gl_text::create_text_mesh;
 use crate::core::{camera::Camera, input, player::Player, terrain::Terrain};
 use crate::error::Result;
@@ -46,7 +46,7 @@ impl World {
             name: String::from("debug"),
             transform: Transform {
                 position: V4::new([1.0, 0.0, 0.0, 1.0]),
-                rotation: V4::default(),
+                rotation: Rotation::default(),
                 size: V4::new([1.0, 1.0, 1.0, 1.0]),
             },
             pipe_id: gl_pipeline::GlPipelineType::MSDFTex.into(),
@@ -61,7 +61,7 @@ impl World {
             name: String::from("terrain_chunk_0_0"),
             transform: Transform {
                 position: V4::new([0.0, 0.0, 0.0, 1.0]),
-                rotation: V4::default(),
+                rotation: Rotation::default(),
                 size: V4::new([1.0, 1.0, 1.0, 1.0]),
             },
             pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
@@ -83,7 +83,7 @@ impl World {
                     name: format!("terrain_normal_arrow_{x}_{z}"),
                     transform: Transform {
                         position: V4::new([0.0, 0.0, 0.0, 1.0]),
-                        rotation: V4::default(),
+                        rotation: Rotation::default(),
                         size: V4::new([1.0, 1.0, 1.0, 1.0]),
                     },
                     pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
