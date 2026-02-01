@@ -154,6 +154,22 @@ impl Neg for M3x3 {
 }
 
 // ----------------------------------------------------------------------------
+impl std::ops::Index<(usize, usize)> for M3x3 {
+    type Output = f32;
+
+    fn index(&self, (row, col): (usize, usize)) -> &Self::Output {
+        &self.m[col * 3 + row]
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl std::ops::IndexMut<(usize, usize)> for M3x3 {
+    fn index_mut(&mut self, (row, col): (usize, usize)) -> &mut Self::Output {
+        &mut self.m[col * 3 + row]
+    }
+}
+
+// ----------------------------------------------------------------------------
 impl M3x3 {
     // ------------------------------------------------------------------------
     pub const fn new(m: [f32; 9]) -> Self {
@@ -211,8 +227,8 @@ impl M3x3 {
     }
 
     // ------------------------------------------------------------------------
-    pub const fn x<const I0: usize, const I1: usize>(&self) -> f32 {
-        self.m[I0 + I1 * 3]
+    pub const fn x<const ROW: usize, const COL: usize>(&self) -> f32 {
+        self.m[ROW + COL * 3]
     }
 
     // ------------------------------------------------------------------------
@@ -396,5 +412,46 @@ impl M3x3 {
                     x20 * v.x0() + x21 * v.x1() + x22 * v.x2(),
                 ])
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_from_cols() {
+        let col_0 = V3::new([1.0, 2.0, 3.0]);
+        let col_1 = V3::new([4.0, 5.0, 6.0]);
+        let col_2 = V3::new([7.0, 8.0, 9.0]);
+        let m = M3x3::from_cols(col_0, col_1, col_2);
+
+        #[rustfmt::skip]
+        assert_eq!(
+            m,
+            M3x3::new([
+                1.0, 4.0, 7.0,
+                2.0, 5.0, 8.0,
+                3.0, 6.0, 9.0
+            ])
+        );
+    }
+
+    #[test]
+    fn test_from_rows() {
+        let row_0 = V3::new([1.0, 2.0, 3.0]);
+        let row_1 = V3::new([4.0, 5.0, 6.0]);
+        let row_2 = V3::new([7.0, 8.0, 9.0]);
+        let m = M3x3::from_rows(row_0, row_1, row_2);
+
+        #[rustfmt::skip]
+        assert_eq!(
+            m,
+            M3x3::new([
+                1.0, 2.0, 3.0,
+                4.0, 5.0, 6.0,
+                7.0, 8.0, 9.0
+            ])
+        );
     }
 }

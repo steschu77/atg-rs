@@ -155,7 +155,7 @@ impl Terrain {
         // Bilinear interpolation
         let n0 = n00 * (1.0 - fx) + n10 * fx;
         let n1 = n01 * (1.0 - fx) + n11 * fx;
-        n0 * (1.0 - fz) + n1 * fz
+        (n0 * (1.0 - fz) + n1 * fz).norm()
     }
 
     pub fn create_normal_arrow_mesh(
