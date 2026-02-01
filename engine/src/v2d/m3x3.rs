@@ -420,11 +420,38 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_getters() {
+        #[rustfmt::skip]
+        let m = M3x3::new([
+            1.0, 2.0, 3.0,
+            4.0, 5.0, 6.0,
+            7.0, 8.0, 9.0,
+        ]);
+
+        assert_eq!(m.x00(), 1.0);
+        assert_eq!(m.x10(), 2.0);
+        assert_eq!(m.x20(), 3.0);
+
+        assert_eq!(m.x01(), 4.0);
+        assert_eq!(m.x11(), 5.0);
+        assert_eq!(m.x21(), 6.0);
+
+        assert_eq!(m.x02(), 7.0);
+        assert_eq!(m.x12(), 8.0);
+        assert_eq!(m.x22(), 9.0);
+    }
+
+    #[test]
     fn test_from_cols() {
         let col_0 = V3::new([1.0, 2.0, 3.0]);
         let col_1 = V3::new([4.0, 5.0, 6.0]);
         let col_2 = V3::new([7.0, 8.0, 9.0]);
+
         let m = M3x3::from_cols(col_0, col_1, col_2);
+
+        assert_eq!(m.col0(), col_0);
+        assert_eq!(m.col1(), col_1);
+        assert_eq!(m.col2(), col_2);
 
         #[rustfmt::skip]
         assert_eq!(
@@ -443,6 +470,10 @@ mod tests {
         let row_1 = V3::new([4.0, 5.0, 6.0]);
         let row_2 = V3::new([7.0, 8.0, 9.0]);
         let m = M3x3::from_rows(row_0, row_1, row_2);
+
+        assert_eq!(m.row0(), row_0);
+        assert_eq!(m.row1(), row_1);
+        assert_eq!(m.row2(), row_2);
 
         #[rustfmt::skip]
         assert_eq!(
