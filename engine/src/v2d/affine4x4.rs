@@ -153,6 +153,6 @@ pub fn perspective(fov: f32, aspect: f32, zn: f32, zf: f32) -> M4x4 {
         .with((0, 0), y / aspect)
         .with((1, 1), y)
         .with((2, 2), -(zf + zn) * dz)
-        .with((2, 3), -1.0)
-        .with((3, 2), -2.0 * zn * zf * dz)
+        .with((3, 2), -1.0)
+        .with((2, 3), -2.0 * zn * zf * dz)
 }

@@ -48,10 +48,10 @@ impl Add for M4x4 {
     #[rustfmt::skip]
     fn add(self, rhs: Self) -> Self::Output {
         M4x4::new([
-            self.x00() + rhs.x00(), self.x01() + rhs.x01(), self.x02() + rhs.x02(), self.x03() + rhs.x03(),
-            self.x10() + rhs.x10(), self.x11() + rhs.x11(), self.x12() + rhs.x12(), self.x13() + rhs.x13(),
-            self.x20() + rhs.x20(), self.x21() + rhs.x21(), self.x22() + rhs.x22(), self.x23() + rhs.x23(),
-            self.x30() + rhs.x30(), self.x31() + rhs.x31(), self.x32() + rhs.x32(), self.x33() + rhs.x33(),
+            self.x00() + rhs.x00(), self.x10() + rhs.x10(), self.x20() + rhs.x20(), self.x30() + rhs.x30(),
+            self.x01() + rhs.x01(), self.x11() + rhs.x11(), self.x21() + rhs.x21(), self.x31() + rhs.x31(),
+            self.x02() + rhs.x02(), self.x12() + rhs.x12(), self.x22() + rhs.x22(), self.x32() + rhs.x32(),
+            self.x03() + rhs.x03(), self.x13() + rhs.x13(), self.x23() + rhs.x23(), self.x33() + rhs.x33(),
         ])
     }
 }
@@ -63,10 +63,10 @@ impl Sub for M4x4 {
     #[rustfmt::skip]
     fn sub(self, rhs: Self) -> Self {
         M4x4::new([
-            self.x00() - rhs.x00(), self.x01() - rhs.x01(), self.x02() - rhs.x02(), self.x03() - rhs.x03(),
-            self.x10() - rhs.x10(), self.x11() - rhs.x11(), self.x12() - rhs.x12(), self.x13() - rhs.x13(),
-            self.x20() - rhs.x20(), self.x21() - rhs.x21(), self.x22() - rhs.x22(), self.x23() - rhs.x23(),
-            self.x30() - rhs.x30(), self.x31() - rhs.x31(), self.x32() - rhs.x32(), self.x33() - rhs.x33(),
+            self.x00() - rhs.x00(), self.x10() - rhs.x10(), self.x20() - rhs.x20(), self.x30() - rhs.x30(),
+            self.x01() - rhs.x01(), self.x11() - rhs.x11(), self.x21() - rhs.x21(), self.x31() - rhs.x31(),
+            self.x02() - rhs.x02(), self.x12() - rhs.x12(), self.x22() - rhs.x22(), self.x32() - rhs.x32(),
+            self.x03() - rhs.x03(), self.x13() - rhs.x13(), self.x23() - rhs.x23(), self.x33() - rhs.x33(),
         ])
     }
 }
@@ -79,10 +79,10 @@ impl Mul<f32> for M4x4 {
     #[rustfmt::skip]
     fn mul(self, s: f32) -> Self::Output {
         M4x4::new([
-            self.x00() * s, self.x01() * s, self.x02() * s, self.x03() * s,
-            self.x10() * s, self.x11() * s, self.x12() * s, self.x13() * s,
-            self.x20() * s, self.x21() * s, self.x22() * s, self.x23() * s,
-            self.x30() * s, self.x31() * s, self.x32() * s, self.x33() * s
+            self.x00() * s, self.x10() * s, self.x20() * s, self.x30() * s,
+            self.x01() * s, self.x11() * s, self.x21() * s, self.x31() * s,
+            self.x02() * s, self.x12() * s, self.x22() * s, self.x32() * s,
+            self.x03() * s, self.x13() * s, self.x23() * s, self.x33() * s
         ])
     }
 }
@@ -95,10 +95,10 @@ impl Mul<M4x4> for f32 {
     #[rustfmt::skip]
     fn mul(self, m: M4x4) -> Self::Output {
         M4x4::new([
-            self * m.x00(), self * m.x01(), self * m.x02(), self * m.x03(),
-            self * m.x10(), self * m.x11(), self * m.x12(), self * m.x13(),
-            self * m.x20(), self * m.x21(), self * m.x22(), self * m.x23(),
-            self * m.x30(), self * m.x31(), self * m.x32(), self * m.x33()
+            self * m.x00(), self * m.x10(), self * m.x20(), self * m.x30(),
+            self * m.x01(), self * m.x11(), self * m.x21(), self * m.x31(),
+            self * m.x02(), self * m.x12(), self * m.x22(), self * m.x32(),
+            self * m.x03(), self * m.x13(), self * m.x23(), self * m.x33()
         ])
     }
 }
@@ -171,10 +171,10 @@ impl Neg for M4x4 {
     #[rustfmt::skip]
     fn neg(self) -> Self {
         M4x4::new([
-            -self.x00(), -self.x01(), -self.x02(), -self.x03(),
-            -self.x10(), -self.x11(), -self.x12(), -self.x13(),
-            -self.x20(), -self.x21(), -self.x22(), -self.x23(),
-            -self.x30(), -self.x31(), -self.x32(), -self.x33(),
+            -self.x00(), -self.x10(), -self.x20(), -self.x30(),
+            -self.x01(), -self.x11(), -self.x21(), -self.x31(),
+            -self.x02(), -self.x12(), -self.x22(), -self.x32(),
+            -self.x03(), -self.x13(), -self.x23(), -self.x33(),
         ])
     }
 }
@@ -184,14 +184,21 @@ impl Index<(usize, usize)> for M4x4 {
     type Output = f32;
 
     fn index(&self, (row, col): (usize, usize)) -> &Self::Output {
-        &self.m[row * 4 + col]
+        &self.m[row + col * 4]
     }
 }
 
 // ----------------------------------------------------------------------------
 impl IndexMut<(usize, usize)> for M4x4 {
     fn index_mut(&mut self, (row, col): (usize, usize)) -> &mut Self::Output {
-        &mut self.m[row * 4 + col]
+        &mut self.m[row + col * 4]
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl From<[f32; 16]> for M4x4 {
+    fn from(m: [f32; 16]) -> Self {
+        M4x4 { m }
     }
 }
 
@@ -214,6 +221,32 @@ impl M4x4 {
 
     // ------------------------------------------------------------------------
     #[rustfmt::skip]
+    pub const fn from_cols(c0: V4, c1: V4, c2: V4, c3: V4) -> Self {
+        M4x4::new([
+            c0.x0(), c0.x1(), c0.x2(), c0.x3(),
+            c1.x0(), c1.x1(), c1.x2(), c1.x3(),
+            c2.x0(), c2.x1(), c2.x2(), c2.x3(),
+            c3.x0(), c3.x1(), c3.x2(), c3.x3()])
+    }
+
+    // ------------------------------------------------------------------------
+    #[rustfmt::skip]
+    pub const fn from_rows(r0: V4, r1: V4, r2: V4, r3: V4) -> Self {
+        M4x4::new([
+            r0.x0(), r1.x0(), r2.x0(), r3.x0(),
+            r0.x1(), r1.x1(), r2.x1(), r3.x1(),
+            r0.x2(), r1.x2(), r2.x2(), r3.x2(),
+            r0.x3(), r1.x3(), r2.x3(), r3.x3()
+        ])
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn from_slice(m: &[f32; 16]) -> Self {
+        M4x4 { m: *m }
+    }
+
+    // ------------------------------------------------------------------------
+    #[rustfmt::skip]
     pub const fn diag(d: [f32; 4]) -> Self {
         M4x4::new([
             d[0], 0.0, 0.0, 0.0,
@@ -229,19 +262,14 @@ impl M4x4 {
     }
 
     // ------------------------------------------------------------------------
-    pub fn from_slice(m: &[f32; 16]) -> Self {
-        M4x4 { m: *m }
-    }
-
-    // ------------------------------------------------------------------------
     pub fn with(mut self, (row, col): (usize, usize), value: f32) -> Self {
         assert!(row < 4 && col < 4, "Index out of bounds");
-        self.m[row * 4 + col] = value;
+        self.m[row + col * 4] = value;
         self
     }
 
     // ------------------------------------------------------------------------
-    pub fn to_array(&self) -> [f32; 16] {
+    pub fn as_array(&self) -> [f32; 16] {
         self.m
     }
 
@@ -251,28 +279,8 @@ impl M4x4 {
     }
 
     // ------------------------------------------------------------------------
-    #[rustfmt::skip]
-    pub const fn from_cols(c0: V4, c1: V4, c2: V4, c3: V4) -> Self {
-        M4x4::new([
-            c0.x0(), c1.x0(), c2.x0(), c3.x0(),
-            c0.x1(), c1.x1(), c2.x1(), c3.x1(),
-            c0.x2(), c1.x2(), c2.x2(), c3.x2(),
-            c0.x3(), c1.x3(), c2.x3(), c3.x3()])
-    }
-
-    // ------------------------------------------------------------------------
-    #[rustfmt::skip]
-    pub const fn from_rows(r0: V4, r1: V4, r2: V4, r3: V4) -> Self {
-        M4x4::new([
-            r0.x0(), r0.x1(), r0.x2(), r0.x3(),
-            r1.x0(), r1.x1(), r1.x2(), r1.x3(),
-            r2.x0(), r2.x1(), r2.x2(), r2.x3(),
-            r3.x0(), r3.x1(), r3.x2(), r3.x3()])
-    }
-
-    // ------------------------------------------------------------------------
-    pub const fn x<const I0: usize, const I1: usize>(&self) -> f32 {
-        self.m[I0 + I1 * 4]
+    pub const fn x<const ROW: usize, const COL: usize>(&self) -> f32 {
+        self.m[ROW + COL * 4]
     }
 
     // ------------------------------------------------------------------------
@@ -356,8 +364,10 @@ impl M4x4 {
     }
 
     // ------------------------------------------------------------------------
+    // Column I is the contiguous block at m[I*4 .. I*4+3]
+    #[rustfmt::skip]
     pub const fn col<const I: usize>(&self) -> V4 {
-        V4::new([self.m[I], self.m[I + 4], self.m[I + 8], self.m[I + 12]])
+        V4::new([self.m[I * 4], self.m[I * 4 + 1], self.m[I * 4 + 2], self.m[I * 4 + 3]])
     }
 
     // ------------------------------------------------------------------------
@@ -381,13 +391,9 @@ impl M4x4 {
     }
 
     // ------------------------------------------------------------------------
+    // Row I is gathered by striding across columns: m[I], m[I+3], m[I+6]
     pub const fn row<const I: usize>(&self) -> V4 {
-        V4::new([
-            self.m[I * 4],
-            self.m[I * 4 + 1],
-            self.m[I * 4 + 2],
-            self.m[I * 4 + 3],
-        ])
+        V4::new([self.m[I], self.m[I + 4], self.m[I + 8], self.m[I + 12]])
     }
 
     // ------------------------------------------------------------------------
@@ -414,10 +420,10 @@ impl M4x4 {
     #[rustfmt::skip]
     pub const fn transpose(&self) -> Self {
         M4x4::new([
-            self.x00(), self.x10(), self.x20(), self.x30(),
-            self.x01(), self.x11(), self.x21(), self.x31(),
-            self.x02(), self.x12(), self.x22(), self.x32(),
-            self.x03(), self.x13(), self.x23(), self.x33(),
+            self.x00(), self.x01(), self.x02(), self.x03(),
+            self.x10(), self.x11(), self.x12(), self.x13(),
+            self.x20(), self.x21(), self.x22(), self.x23(),
+            self.x30(), self.x31(), self.x32(), self.x33(),
         ])
     }
 
@@ -425,24 +431,24 @@ impl M4x4 {
     #[rustfmt::skip]
     pub fn abs(&self) -> Self {
         M4x4::new([
-            self.x00().abs(), self.x01().abs(), self.x02().abs(), self.x03().abs(),
-            self.x10().abs(), self.x11().abs(), self.x12().abs(), self.x13().abs(),
-            self.x20().abs(), self.x21().abs(), self.x22().abs(), self.x23().abs(),
-            self.x30().abs(), self.x31().abs(), self.x32().abs(), self.x33().abs(),
+            self.x00().abs(), self.x10().abs(), self.x20().abs(), self.x30().abs(),
+            self.x01().abs(), self.x11().abs(), self.x21().abs(), self.x31().abs(),
+            self.x02().abs(), self.x12().abs(), self.x22().abs(), self.x32().abs(),
+            self.x03().abs(), self.x13().abs(), self.x23().abs(), self.x33().abs(),
         ])
     }
 
     // ------------------------------------------------------------------------
     // https://en.wikipedia.org/wiki/Minor_(linear_algebra)
-    pub fn minor<const I: usize, const J: usize>(&self) -> M3x3 {
+    pub fn minor<const ROW: usize, const COL: usize>(&self) -> M3x3 {
         let mut m = [0.0; 9];
         let mut k = 0;
-        for i in 0..4 {
-            if i == I {
+        for j in 0..4 {
+            if j == COL {
                 continue;
             }
-            for j in 0..4 {
-                if j == J {
+            for i in 0..4 {
+                if i == ROW {
                     continue;
                 }
                 m[k] = self.m[i + j * 4];
