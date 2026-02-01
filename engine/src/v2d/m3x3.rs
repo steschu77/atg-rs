@@ -1,4 +1,5 @@
 use std::ops::{Add, Mul, Neg, Sub};
+use std::ops::{Index, IndexMut};
 
 use super::float_eq::float_eq_rel;
 use super::m2x2::M2x2;
@@ -40,9 +41,9 @@ impl Add for M3x3 {
     #[rustfmt::skip]
     fn add(self, rhs: Self) -> Self::Output {
         M3x3::new([
-            self.x00() + rhs.x00(), self.x01() + rhs.x01(), self.x02() + rhs.x02(),
-            self.x10() + rhs.x10(), self.x11() + rhs.x11(), self.x12() + rhs.x12(),
-            self.x20() + rhs.x20(), self.x21() + rhs.x21(), self.x22() + rhs.x22()
+            self.x00() + rhs.x00(), self.x10() + rhs.x10(), self.x20() + rhs.x20(),
+            self.x01() + rhs.x01(), self.x11() + rhs.x11(), self.x21() + rhs.x21(),
+            self.x02() + rhs.x02(), self.x12() + rhs.x12(), self.x22() + rhs.x22()
         ])
     }
 }
@@ -54,9 +55,9 @@ impl Sub for M3x3 {
     #[rustfmt::skip]
     fn sub(self, rhs: Self) -> Self::Output {
         M3x3::new([
-            self.x00() - rhs.x00(), self.x01() - rhs.x01(), self.x02() - rhs.x02(),
-            self.x10() - rhs.x10(), self.x11() - rhs.x11(), self.x12() - rhs.x12(),
-            self.x20() - rhs.x20(), self.x21() - rhs.x21(), self.x22() - rhs.x22()
+            self.x00() - rhs.x00(), self.x10() - rhs.x10(), self.x20() - rhs.x20(),
+            self.x01() - rhs.x01(), self.x11() - rhs.x11(), self.x21() - rhs.x21(),
+            self.x02() - rhs.x02(), self.x12() - rhs.x12(), self.x22() - rhs.x22()
         ])
     }
 }
@@ -69,9 +70,9 @@ impl Mul<f32> for M3x3 {
     #[rustfmt::skip]
     fn mul(self, s: f32) -> Self::Output {
         M3x3::new([
-            self.x00() * s, self.x01() * s, self.x02() * s,
-            self.x10() * s, self.x11() * s, self.x12() * s,
-            self.x20() * s, self.x21() * s, self.x22() * s
+            self.x00() * s, self.x10() * s, self.x20() * s,
+            self.x01() * s, self.x11() * s, self.x21() * s,
+            self.x02() * s, self.x12() * s, self.x22() * s
         ])
     }
 }
@@ -84,9 +85,9 @@ impl Mul<M3x3> for f32 {
     #[rustfmt::skip]
     fn mul(self, m: M3x3) -> Self::Output {
         M3x3::new([
-            self * m.x00(), self * m.x01(), self * m.x02(),
-            self * m.x10(), self * m.x11(), self * m.x12(),
-            self * m.x20(), self * m.x21(), self * m.x22()
+            self * m.x00(), self * m.x10(), self * m.x20(),
+            self * m.x01(), self * m.x11(), self * m.x21(),
+            self * m.x02(), self * m.x12(), self * m.x22()
         ])
     }
 }
@@ -126,15 +127,15 @@ impl Mul<M3x3> for M3x3 {
 
     fn mul(self, rhs: Self) -> Self::Output {
         let x00 = self.x00() * rhs.x00() + self.x01() * rhs.x10() + self.x02() * rhs.x20();
-        let x01 = self.x00() * rhs.x01() + self.x01() * rhs.x11() + self.x02() * rhs.x21();
-        let x02 = self.x00() * rhs.x02() + self.x01() * rhs.x12() + self.x02() * rhs.x22();
         let x10 = self.x10() * rhs.x00() + self.x11() * rhs.x10() + self.x12() * rhs.x20();
-        let x11 = self.x10() * rhs.x01() + self.x11() * rhs.x11() + self.x12() * rhs.x21();
-        let x12 = self.x10() * rhs.x02() + self.x11() * rhs.x12() + self.x12() * rhs.x22();
         let x20 = self.x20() * rhs.x00() + self.x21() * rhs.x10() + self.x22() * rhs.x20();
+        let x01 = self.x00() * rhs.x01() + self.x01() * rhs.x11() + self.x02() * rhs.x21();
+        let x11 = self.x10() * rhs.x01() + self.x11() * rhs.x11() + self.x12() * rhs.x21();
         let x21 = self.x20() * rhs.x01() + self.x21() * rhs.x11() + self.x22() * rhs.x21();
+        let x02 = self.x00() * rhs.x02() + self.x01() * rhs.x12() + self.x02() * rhs.x22();
+        let x12 = self.x10() * rhs.x02() + self.x11() * rhs.x12() + self.x12() * rhs.x22();
         let x22 = self.x20() * rhs.x02() + self.x21() * rhs.x12() + self.x22() * rhs.x22();
-        M3x3::new([x00, x01, x02, x10, x11, x12, x20, x21, x22])
+        M3x3::new([x00, x10, x20, x01, x11, x21, x02, x12, x22])
     }
 }
 
@@ -145,15 +146,15 @@ impl Neg for M3x3 {
     #[rustfmt::skip]
     fn neg(self) -> Self {
         M3x3::new([
-            -self.x00(), -self.x01(), -self.x02(),
-            -self.x10(), -self.x11(), -self.x12(),
-            -self.x20(), -self.x21(), -self.x22()
+            -self.x00(), -self.x10(), -self.x20(),
+            -self.x01(), -self.x11(), -self.x21(),
+            -self.x02(), -self.x12(), -self.x22()
         ])
     }
 }
 
 // ----------------------------------------------------------------------------
-impl std::ops::Index<(usize, usize)> for M3x3 {
+impl Index<(usize, usize)> for M3x3 {
     type Output = f32;
 
     fn index(&self, (row, col): (usize, usize)) -> &Self::Output {
@@ -162,7 +163,7 @@ impl std::ops::Index<(usize, usize)> for M3x3 {
 }
 
 // ----------------------------------------------------------------------------
-impl std::ops::IndexMut<(usize, usize)> for M3x3 {
+impl IndexMut<(usize, usize)> for M3x3 {
     fn index_mut(&mut self, (row, col): (usize, usize)) -> &mut Self::Output {
         &mut self.m[col * 3 + row]
     }
@@ -186,9 +187,9 @@ impl M3x3 {
     #[rustfmt::skip]
     pub const fn from_cols(c0: V3, c1: V3, c2: V3) -> Self {
         M3x3::new([
-            c0.x0(), c1.x0(), c2.x0(),
-            c0.x1(), c1.x1(), c2.x1(),
-            c0.x2(), c1.x2(), c2.x2()
+            c0.x0(), c0.x1(), c0.x2(),
+            c1.x0(), c1.x1(), c1.x2(),
+            c2.x0(), c2.x1(), c2.x2()
         ])
     }
 
@@ -196,9 +197,9 @@ impl M3x3 {
     #[rustfmt::skip]
     pub const fn from_rows(r0: V3, r1: V3, r2: V3) -> Self {
         M3x3::new([
-            r0.x0(), r0.x1(), r0.x2(),
-            r1.x0(), r1.x1(), r1.x2(),
-            r2.x0(), r2.x1(), r2.x2()
+            r0.x0(), r1.x0(), r2.x0(),
+            r0.x1(), r1.x1(), r2.x1(),
+            r0.x2(), r1.x2(), r2.x2()
         ])
     }
 
@@ -283,8 +284,9 @@ impl M3x3 {
     }
 
     // ------------------------------------------------------------------------
+    // Column I is the contiguous block at m[I*3 .. I*3+2]
     pub const fn col<const I: usize>(&self) -> V3 {
-        V3::new([self.m[I], self.m[I + 3], self.m[I + 6]])
+        V3::new([self.m[I * 3], self.m[I * 3 + 1], self.m[I * 3 + 2]])
     }
 
     // ------------------------------------------------------------------------
@@ -303,8 +305,9 @@ impl M3x3 {
     }
 
     // ------------------------------------------------------------------------
+    // Row I is gathered by striding across columns: m[I], m[I+3], m[I+6]
     pub const fn row<const I: usize>(&self) -> V3 {
-        V3::new([self.m[I * 3], self.m[I * 3 + 1], self.m[I * 3 + 2]])
+        V3::new([self.m[I], self.m[I + 3], self.m[I + 6]])
     }
 
     // ------------------------------------------------------------------------
@@ -326,9 +329,9 @@ impl M3x3 {
     #[rustfmt::skip]
     pub const fn transpose(&self) -> Self {
         M3x3::new([
-            self.x00(), self.x10(), self.x20(),
-            self.x01(), self.x11(), self.x21(),
-            self.x02(), self.x12(), self.x22(),
+            self.x00(), self.x01(), self.x02(),
+            self.x10(), self.x11(), self.x12(),
+            self.x20(), self.x21(), self.x22(),
         ])
     }
 
@@ -336,9 +339,9 @@ impl M3x3 {
     #[rustfmt::skip]
     pub fn abs(&self) -> Self {
         M3x3::new([
-            self.x00().abs(), self.x01().abs(), self.x02().abs(),
-            self.x10().abs(), self.x11().abs(), self.x12().abs(),
-            self.x20().abs(), self.x21().abs(), self.x22().abs(),
+            self.x00().abs(), self.x10().abs(), self.x20().abs(),
+            self.x01().abs(), self.x11().abs(), self.x21().abs(),
+            self.x02().abs(), self.x12().abs(), self.x22().abs(),
         ])
     }
 
@@ -347,12 +350,12 @@ impl M3x3 {
     pub fn minor<const ROW: usize, const COL: usize>(&self) -> M2x2 {
         let mut m = [0.0; 4];
         let mut k = 0;
-        for i in 0..3 {
-            if i == ROW {
+        for j in 0..3 {
+            if j == COL {
                 continue;
             }
-            for j in 0..3 {
-                if j == COL {
+            for i in 0..3 {
+                if i == ROW {
                     continue;
                 }
                 m[k] = self.m[i + j * 3];
@@ -388,9 +391,9 @@ impl M3x3 {
             let x21 = self.x01() * self.x20() - self.x00() * self.x21();
             let x22 = self.x00() * self.x11() - self.x01() * self.x10();
             inv_d * M3x3::new([
-                x00, x01, x02,
-                x10, x11, x12,
-                x20, x21, x22
+                x00, x10, x20,
+                x01, x11, x21,
+                x02, x12, x22
             ])
         }
     }
@@ -463,9 +466,9 @@ mod tests {
         assert_eq!(
             m,
             M3x3::new([
-                1.0, 4.0, 7.0,
-                2.0, 5.0, 8.0,
-                3.0, 6.0, 9.0
+                1.0, 2.0, 3.0,
+                4.0, 5.0, 6.0,
+                7.0, 8.0, 9.0
             ])
         );
     }
@@ -485,9 +488,9 @@ mod tests {
         assert_eq!(
             m,
             M3x3::new([
-                1.0, 2.0, 3.0,
-                4.0, 5.0, 6.0,
-                7.0, 8.0, 9.0
+                1.0, 4.0, 7.0,
+                2.0, 5.0, 8.0,
+                3.0, 6.0, 9.0
             ])
         );
     }
