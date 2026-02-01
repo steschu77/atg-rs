@@ -2,7 +2,8 @@ use crate::core::component::{Component, Context};
 use crate::core::gl_renderer::{RenderContext, RenderObject, Rotation, Transform};
 use crate::core::input;
 use crate::error::Result;
-use crate::v2d::{r2::R2, v2::V2, v3::V3, v4::V4};
+use crate::v2d::q::Q;
+use crate::v2d::{affine4x4, r2::R2, v2::V2, v3::V3, v4::V4};
 
 // ----------------------------------------------------------------------------
 // Terminology based on
@@ -34,6 +35,8 @@ pub struct Pose {
     pub body: V3,
     pub head: V3,
     pub feet: [V3; 2],
+    pub toes: [Q; 2],
+    pub toe_dirs: [V3; 2],
 }
 
 // ----------------------------------------------------------------------------
@@ -45,6 +48,14 @@ impl Pose {
             feet: [
                 self.feet[0].lerp(&target.feet[0], t),
                 self.feet[1].lerp(&target.feet[1], t),
+            ],
+            toes: [
+                self.toes[0].slerp(&target.toes[0], t),
+                self.toes[1].slerp(&target.toes[1], t),
+            ],
+            toe_dirs: [
+                self.toe_dirs[0].lerp(&target.toe_dirs[0], t),
+                self.toe_dirs[1].lerp(&target.toe_dirs[1], t),
             ],
         }
     }
@@ -116,6 +127,7 @@ pub struct StepAnimation {
 #[derive(Debug)]
 pub struct Player {
     pub objects: [RenderObject; 4],
+    pub debug_arrows: [RenderObject; 2],
     pub rotation: R2,
     pub position: V2,
     pub state: AnimationState,
@@ -163,7 +175,18 @@ fn toe_roll(t: f32) -> f32 {
 
 // ----------------------------------------------------------------------------
 impl Player {
-    pub fn new(_context: &mut RenderContext) -> Self {
+    pub fn new(context: &mut RenderContext) -> Self {
+        use crate::core::gl_pipeline_colored::arrow;
+        let pos = V3::new([1.0, 0.0, 0.0]);
+        let forward_3d = V3::new([0.0, 0.0, 1.0]);
+        let arrow_verts = arrow(pos, forward_3d, 1.5);
+
+        let left_arrow_mesh_id = context
+            .create_colored_mesh(&arrow_verts, &[], true)
+            .unwrap();
+        let right_arrow_mesh_id = context
+            .create_colored_mesh(&arrow_verts, &[], true)
+            .unwrap();
         Self {
             objects: [
                 RenderObject {
@@ -211,7 +234,33 @@ impl Player {
                     ..Default::default()
                 },
             ],
-            rotation: R2::default(),
+            debug_arrows: [
+                RenderObject {
+                    name: String::from("player:debug_arrow_left"),
+                    transform: Transform {
+                        position: V4::new([0.0, 0.0, 0.0, 1.0]),
+                        size: V4::new([1.0, 1.0, 1.0, 1.0]),
+                        ..Default::default()
+                    },
+                    pipe_id: 0,
+                    mesh_id: left_arrow_mesh_id,
+                    material_id: 0,
+                    ..Default::default()
+                },
+                RenderObject {
+                    name: String::from("player:debug_arrow_right"),
+                    transform: Transform {
+                        position: V4::new([0.0, 0.0, 0.0, 1.0]),
+                        size: V4::new([1.0, 1.0, 1.0, 1.0]),
+                        ..Default::default()
+                    },
+                    pipe_id: 0,
+                    mesh_id: right_arrow_mesh_id,
+                    material_id: 0,
+                    ..Default::default()
+                },
+            ],
+            rotation: R2::new(std::f32::consts::FRAC_PI_4),
             position: V2::default(),
             state: AnimationState::Idle,
             active_step: None,
@@ -267,6 +316,7 @@ impl Player {
 
         let foot_pos = stance_pos + self.rotation * foot_offset;
         let height = ctx.terrain.height_at(foot_pos.x0(), foot_pos.x1());
+        let normal = ctx.terrain.normal_at(foot_pos.x0(), foot_pos.x1());
 
         let body_pos = 0.5
             * V2::new([
@@ -277,6 +327,19 @@ impl Player {
         let start = self.current_pose.feet[swing_foot];
         let target = V3::new([foot_pos.x0(), height + feet_height, foot_pos.x1()]);
         let control = 0.5 * (start + target) + V3::new([0.0, lift, 0.0]);
+
+        let walk_dir = self.rotation.y_axis();
+        let walk_dir = V3::new([walk_dir.x0(), 0.0, walk_dir.x1()]).norm();
+
+        let right = V3::cross(&normal, &walk_dir).norm();
+        let toe_dir = V3::cross(&right, &normal).norm();
+        let toe = Q::from_axes(&right, &normal, &toe_dir);
+
+        let mut toe_dirs = self.current_pose.toe_dirs;
+        toe_dirs[swing_foot] = right.norm();
+
+        let mut toes = self.current_pose.toes;
+        toes[swing_foot] = toe;
 
         let mut feet = self.current_pose.feet;
         feet[swing_foot] = target;
@@ -295,6 +358,8 @@ impl Player {
             body: V3::new([body_pos.x0(), height + body_height, body_pos.x1()]),
             head: V3::new([body_pos.x0(), height + head_height, body_pos.x1()]),
             feet,
+            toes,
+            toe_dirs,
         };
     }
 
@@ -316,6 +381,19 @@ impl Player {
     pub fn position(&self) -> V4 {
         let pos = self.current_pose.body;
         V4::new([pos.x0(), pos.x1(), pos.x2(), 1.0])
+    }
+
+    pub fn update_debug_arrows(&mut self, context: &mut RenderContext) -> Result<()> {
+        use crate::core::gl_pipeline_colored::arrow;
+
+        for i in 0..2 {
+            let foot_pos = self.current_pose.feet[i];
+            let forward = self.current_pose.toe_dirs[i];
+            let arrow_verts = arrow(foot_pos, forward, 1.5);
+            context.update_colored_mesh(self.debug_arrows[i].mesh_id, &arrow_verts, &[])?;
+        }
+
+        Ok(())
     }
 }
 
@@ -422,13 +500,12 @@ impl Component for Player {
         self.objects[0].transform.rotation = rotation;
         self.objects[1].transform.rotation = rotation;
 
-        let rotation = self.rotation.get();
-        let rotation = Rotation::Euler(V3::new([feet_rot[0], rotation, 0.0]));
-        self.objects[2].transform.rotation = rotation;
+        let rotation = self.current_pose.toes[0].as_mat4x4() * affine4x4::rotate_x0(feet_rot[0]);
+        self.objects[2].transform.rotation = Rotation::Matrix(rotation);
 
-        let rotation = self.rotation.get();
-        let rotation = Rotation::Euler(V3::new([feet_rot[1], rotation, 0.0]));
-        self.objects[3].transform.rotation = rotation;
+        let rotation = self.current_pose.toes[1].as_mat4x4() * affine4x4::rotate_x0(feet_rot[1]);
+        self.objects[3].transform.rotation = Rotation::Matrix(rotation);
+
         Ok(())
     }
 }

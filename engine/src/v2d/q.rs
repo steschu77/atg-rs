@@ -209,17 +209,17 @@ impl Q {
 
     // ----------------------------------------------------------------------------
     // NLERP: normalized linear interpolation
-    pub fn nlerp(q0: Self, q1: Self, t: f32) -> Self {
-        let dot = Q::dot(&q0, &q1);
-        let q1 = if dot < 0.0 { -q1 } else { q1 };
-        (q0 * (1.0 - t) + q1 * t).norm()
+    pub fn nlerp(&self, q1: &Self, t: f32) -> Self {
+        let dot = Q::dot(self, q1);
+        let q1 = if dot < 0.0 { -*q1 } else { *q1 };
+        (*self * (1.0 - t) + q1 * t).norm()
     }
 
     // ----------------------------------------------------------------------------
     // SLERP: spherical linear interpolation
-    pub fn slerp(a: Self, b: Self, t: f32) -> Self {
-        let mut b = b;
-        let mut c = Q::dot(&a, &b);
+    pub fn slerp(&self, b: &Self, t: f32) -> Self {
+        let mut b = *b;
+        let mut c = Q::dot(self, &b);
 
         // Take shortest path
         if c < 0.0 {
@@ -229,7 +229,7 @@ impl Q {
 
         // If nearly parallel, fall back to nlerp
         if c > 0.9995 {
-            return Q::nlerp(a, b, t);
+            return self.nlerp(&b, t);
         }
 
         let th = c.acos();
@@ -238,7 +238,7 @@ impl Q {
         let w0 = ((1.0 - t) * th).sin() / s;
         let w1 = (t * th).sin() / s;
 
-        a * w0 + b * w1
+        *self * w0 + b * w1
     }
 
     // ----------------------------------------------------------------------------
@@ -312,33 +312,61 @@ impl Q {
     }
 
     // ------------------------------------------------------------------------
-    #[allow(clippy::collapsible_else_if)]
     pub fn from_mat3(m: &M3x3) -> Self {
-        let m00 = m.x00();
-        let m11 = m.x11();
-        let m22 = m.x22();
+        let trace = m.x00() + m.x11() + m.x22();
 
-        #[rustfmt::skip]
-        let (t, q) = if m22 < 0.0 {
-            if m00 > m11 {
-                let t = 1.0 + m00 - m11 - m22;
-                (t, Q::new([t, m.x10() + m.x01(), m.x02() + m.x20(), m.x21() - m.x12()]))
-            } else {
-                let t = 1.0 - m00 + m11 - m22;
-                (t, Q::new([m.x10() + m.x01(), t, m.x21() + m.x12(), m.x02() - m.x20()]))
-            }
+        let q = if trace > 0.0 {
+            let t = trace + 1.0;
+            let s = 0.5 / t.sqrt();
+            Q::new([
+                (m.x21() - m.x12()) * s,
+                (m.x02() - m.x20()) * s,
+                (m.x10() - m.x01()) * s,
+                0.25 / s,
+            ])
+        } else if m.x00() > m.x11() && m.x00() > m.x22() {
+            let t = 1.0 + m.x00() - m.x11() - m.x22();
+            let s = 0.5 / t.sqrt();
+            Q::new([
+                0.25 / s,
+                (m.x01() + m.x10()) * s,
+                (m.x02() + m.x20()) * s,
+                (m.x21() - m.x12()) * s,
+            ])
+        } else if m.x11() > m.x22() {
+            let t = 1.0 - m.x00() + m.x11() - m.x22();
+            let s = 0.5 / t.sqrt();
+            Q::new([
+                (m.x01() + m.x10()) * s,
+                0.25 / s,
+                (m.x12() + m.x21()) * s,
+                (m.x02() - m.x20()) * s,
+            ])
         } else {
-            if m00 < -m11 {
-                let t = 1.0 - m00 - m11 + m22;
-                (t, Q::new([m.x02() + m.x20(), m.x21() + m.x12(), t, m.x10() - m.x01()]))
-            } else {
-                let t = 1.0 + m00 + m11 + m22;
-                (t, Q::new([m.x21() - m.x12(), m.x02() - m.x20(), m.x10() - m.x01(), t]))
-            }
+            let t = 1.0 - m.x00() - m.x11() + m.x22();
+            let s = 0.5 / t.sqrt();
+            Q::new([
+                (m.x02() + m.x20()) * s,
+                (m.x12() + m.x21()) * s,
+                0.25 / s,
+                (m.x10() - m.x01()) * s,
+            ])
         };
 
-        let scale = 0.5 / t.sqrt();
-        q * scale
+        q.norm()
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn from_axes(x_axis: &V3, y_axis: &V3, z_axis: &V3) -> Self {
+        let m = M3x3::from_cols(*x_axis, *y_axis, *z_axis);
+        debug_assert!(m.det() > 0.0, "Basis must be right-handed");
+
+        let q = Q::from_mat3(&m).conjugate();
+        debug_assert_eq!(q.rotate(&V3::X0), *x_axis);
+        debug_assert_eq!(q.rotate(&V3::X1), *y_axis);
+        debug_assert_eq!(q.rotate(&V3::X2), *z_axis);
+
+        q
     }
 }
 
@@ -457,5 +485,39 @@ mod test {
         let v_rot_q = q.rotate(&v);
         let v_rot_m = m * v;
         assert_eq!(v_rot_q, v_rot_m);
+    }
+
+    #[test]
+    fn axis_quat_rotate() {
+        let x_axis = V3::new([0.6, 0.8, 0.0]);
+        let y_axis = V3::new([-0.8, 0.6, 0.0]);
+        let z_axis = V3::new([0.0, 0.0, 1.0]);
+        let q = Q::from_axes(&x_axis, &y_axis, &z_axis);
+
+        let v_rot_q = q.rotate(&[1.0, 0.0, 0.0].into());
+        assert_eq!(v_rot_q, x_axis);
+
+        let v_rot_q = q.rotate(&[0.0, 1.0, 0.0].into());
+        assert_eq!(v_rot_q, y_axis);
+
+        let v_rot_q = q.rotate(&[0.0, 0.0, 1.0].into());
+        assert_eq!(v_rot_q, z_axis);
+    }
+
+    #[test]
+    fn axis_quat_rotate_2() {
+        let x_axis = V3::new([-0.6544649, -0.3786178, -0.6544649]);
+        let y_axis = V3::new([-0.17025319, 0.9171547, -0.3603346]);
+        let z_axis = -V3::new([-0.73667467, 0.12440162, 0.66470647]);
+        let q = Q::from_axes(&x_axis, &y_axis, &z_axis);
+
+        let v_rot_q = q.rotate(&[1.0, 0.0, 0.0].into());
+        assert_eq!(v_rot_q, x_axis);
+
+        let v_rot_q = q.rotate(&[0.0, 1.0, 0.0].into());
+        assert_eq!(v_rot_q, y_axis);
+
+        let v_rot_q = q.rotate(&[0.0, 0.0, 1.0].into());
+        assert_eq!(v_rot_q, z_axis);
     }
 }

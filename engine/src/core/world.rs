@@ -125,6 +125,8 @@ impl World {
         self.camera.update(&ctx)?;
         self.player.update(&ctx)?;
 
+        self.player.update_debug_arrows(&mut self.render_context)?;
+
         let player_pos = self.player.position();
         let mesh = create_text_mesh(&self._font, &format!("{player_pos}"))?;
         self.render_context
@@ -150,7 +152,9 @@ impl World {
         let mut objects = self.terrain_chunks.clone();
         objects.extend(self.terrain_normal_arrows.iter().cloned());
         objects.extend(self.player.objects.iter().cloned());
+        objects.extend(self.player.debug_arrows.iter().cloned());
         objects.push(self.debug.clone());
+
         objects
     }
 
