@@ -1,4 +1,5 @@
 use std::ops::{Add, Mul, Neg, Sub};
+use std::ops::{Index, IndexMut};
 
 use super::float_eq::float_eq_rel;
 use super::v2::V2;
@@ -33,10 +34,10 @@ impl Add for M2x2 {
 
     fn add(self, rhs: Self) -> Self::Output {
         let x00 = self.x00() + rhs.x00();
-        let x01 = self.x01() + rhs.x01();
         let x10 = self.x10() + rhs.x10();
+        let x01 = self.x01() + rhs.x01();
         let x11 = self.x11() + rhs.x11();
-        M2x2::new([x00, x01, x10, x11])
+        M2x2::new([x00, x10, x01, x11])
     }
 }
 
@@ -46,10 +47,10 @@ impl Sub for M2x2 {
 
     fn sub(self, rhs: Self) -> Self {
         let x00 = self.x00() - rhs.x00();
-        let x01 = self.x01() - rhs.x01();
         let x10 = self.x10() - rhs.x10();
+        let x01 = self.x01() - rhs.x01();
         let x11 = self.x11() - rhs.x11();
-        M2x2::new([x00, x01, x10, x11])
+        M2x2::new([x00, x10, x01, x11])
     }
 }
 
@@ -60,10 +61,10 @@ impl Mul<f32> for M2x2 {
 
     fn mul(self, s: f32) -> Self::Output {
         let x00 = self.x00() * s;
-        let x01 = self.x01() * s;
         let x10 = self.x10() * s;
+        let x01 = self.x01() * s;
         let x11 = self.x11() * s;
-        M2x2::new([x00, x01, x10, x11])
+        M2x2::new([x00, x10, x01, x11])
     }
 }
 
@@ -77,7 +78,7 @@ impl Mul<M2x2> for f32 {
         let x01 = self * m.x01();
         let x10 = self * m.x10();
         let x11 = self * m.x11();
-        M2x2::new([x00, x01, x10, x11])
+        M2x2::new([x00, x10, x01, x11])
     }
 }
 
@@ -115,7 +116,7 @@ impl Mul<M2x2> for M2x2 {
         let x01 = self.x00() * rhs.x01() + self.x01() * rhs.x11();
         let x10 = self.x10() * rhs.x00() + self.x11() * rhs.x10();
         let x11 = self.x10() * rhs.x01() + self.x11() * rhs.x11();
-        M2x2::new([x00, x01, x10, x11])
+        M2x2::new([x00, x10, x01, x11])
     }
 }
 
@@ -124,7 +125,23 @@ impl Neg for M2x2 {
     type Output = Self;
 
     fn neg(self) -> Self {
-        M2x2::new([-self.x00(), -self.x01(), -self.x10(), -self.x11()])
+        M2x2::new([-self.x00(), -self.x10(), -self.x01(), -self.x11()])
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl Index<(usize, usize)> for M2x2 {
+    type Output = f32;
+
+    fn index(&self, (row, col): (usize, usize)) -> &Self::Output {
+        &self.m[row + col * 2]
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl IndexMut<(usize, usize)> for M2x2 {
+    fn index_mut(&mut self, (row, col): (usize, usize)) -> &mut Self::Output {
+        &mut self.m[row + col * 2]
     }
 }
 
@@ -150,10 +167,10 @@ impl M2x2 {
     }
 
     // ------------------------------------------------------------------------
+    // Column-major layout: col0 = [cos, sin], col1 = [-sin, cos]
     pub fn rotation(r: f32) -> Self {
-        let c = r.cos();
-        let s = r.sin();
-        M2x2::new([c, -s, s, c])
+        let (s, c) = r.sin_cos();
+        M2x2::new([c, s, -s, c])
     }
 
     // ------------------------------------------------------------------------
@@ -162,8 +179,9 @@ impl M2x2 {
     }
 
     // ------------------------------------------------------------------------
+    // Column-major: x<ROW, COL> = m[ROW + COL * 2]
     pub const fn x<const I0: usize, const I1: usize>(&self) -> f32 {
-        self.m[I0 * 2 + I1]
+        self.m[I0 + I1 * 2]
     }
 
     // ------------------------------------------------------------------------
@@ -187,8 +205,9 @@ impl M2x2 {
     }
 
     // ------------------------------------------------------------------------
+    // Column I is the contiguous block at m[I*2 .. I*2+1]
     pub const fn col<const I: usize>(&self) -> V2 {
-        V2::new([self.m[I], self.m[I + 2]])
+        V2::new([self.m[I * 2], self.m[I * 2 + 1]])
     }
 
     // ------------------------------------------------------------------------
@@ -202,8 +221,9 @@ impl M2x2 {
     }
 
     // ------------------------------------------------------------------------
+    // Row I is gathered by striding across columns: m[I], m[I+2]
     pub const fn row<const I: usize>(&self) -> V2 {
-        V2::new([self.m[I * 2], self.m[I * 2 + 1]])
+        V2::new([self.m[I], self.m[I + 2]])
     }
 
     // ------------------------------------------------------------------------
@@ -220,8 +240,8 @@ impl M2x2 {
     #[rustfmt::skip]
     pub const fn transpose(&self) -> Self {
         M2x2::new([
-            self.x00(), self.x10(),
-            self.x01(), self.x11()
+            self.x00(), self.x01(),
+            self.x10(), self.x11()
         ])
     }
 
@@ -231,7 +251,7 @@ impl M2x2 {
         let x01 = self.x01().abs();
         let x10 = self.x10().abs();
         let x11 = self.x11().abs();
-        M2x2::new([x00, x01, x10, x11])
+        M2x2::new([x00, x10, x01, x11])
     }
 
     // ------------------------------------------------------------------------
@@ -250,7 +270,7 @@ impl M2x2 {
             let x01 = -inv_d * self.x01();
             let x10 = -inv_d * self.x10();
             let x11 = inv_d * self.x00();
-            M2x2::new([x00, x01, x10, x11])
+            M2x2::new([x00, x10, x01, x11])
         }
     }
 
@@ -274,29 +294,37 @@ mod tests {
 
     #[test]
     fn test_m2x2_getters() {
+        // Column-major: col0 = [1, 2], col1 = [3, 4]
+        // Logical matrix: [[1, 3],
+        //                  [2, 4]]
         let m = M2x2::new([1.0, 2.0, 3.0, 4.0]);
 
         assert_eq!(m.x::<0, 0>(), 1.0);
-        assert_eq!(m.x::<0, 1>(), 2.0);
-        assert_eq!(m.x::<1, 0>(), 3.0);
+        assert_eq!(m.x::<0, 1>(), 3.0);
+        assert_eq!(m.x::<1, 0>(), 2.0);
         assert_eq!(m.x::<1, 1>(), 4.0);
 
         assert_eq!(m.x00(), 1.0);
-        assert_eq!(m.x01(), 2.0);
-        assert_eq!(m.x10(), 3.0);
+        assert_eq!(m.x01(), 3.0);
+        assert_eq!(m.x10(), 2.0);
         assert_eq!(m.x11(), 4.0);
 
-        assert_eq!(m.col::<0>(), V2::new([1.0, 3.0]));
-        assert_eq!(m.col::<1>(), V2::new([2.0, 4.0]));
+        assert_eq!(m.col::<0>(), V2::new([1.0, 2.0]));
+        assert_eq!(m.col::<1>(), V2::new([3.0, 4.0]));
 
-        assert_eq!(m.col0(), V2::new([1.0, 3.0]));
-        assert_eq!(m.col1(), V2::new([2.0, 4.0]));
+        assert_eq!(m.col0(), V2::new([1.0, 2.0]));
+        assert_eq!(m.col1(), V2::new([3.0, 4.0]));
 
-        assert_eq!(m.row::<0>(), V2::new([1.0, 2.0]));
-        assert_eq!(m.row::<1>(), V2::new([3.0, 4.0]));
+        assert_eq!(m.row::<0>(), V2::new([1.0, 3.0]));
+        assert_eq!(m.row::<1>(), V2::new([2.0, 4.0]));
 
-        assert_eq!(m.row0(), V2::new([1.0, 2.0]));
-        assert_eq!(m.row1(), V2::new([3.0, 4.0]));
+        assert_eq!(m.row0(), V2::new([1.0, 3.0]));
+        assert_eq!(m.row1(), V2::new([2.0, 4.0]));
+
+        assert_eq!(m[(0, 0)], 1.0);
+        assert_eq!(m[(0, 1)], 3.0);
+        assert_eq!(m[(1, 0)], 2.0);
+        assert_eq!(m[(1, 1)], 4.0);
     }
 
     #[test]
@@ -307,8 +335,9 @@ mod tests {
         let id = M2x2::identity();
         assert_eq!(id, M2x2::new([1.0, 0.0, 0.0, 1.0]));
 
+        // rotation(PI/2): col0=[cos,sin]=[0,1], col1=[-sin,cos]=[-1,0]
         let r = M2x2::rotation(0.5 * std::f32::consts::PI);
-        assert_eq!(r, M2x2::new([0.0, -1.0, 1.0, 0.0]));
+        assert_eq!(r, M2x2::new([0.0, 1.0, -1.0, 0.0]));
 
         let s = M2x2::scale(2.0);
         assert_eq!(s, M2x2::new([2.0, 0.0, 0.0, 2.0]));
@@ -316,16 +345,28 @@ mod tests {
 
     #[test]
     fn test_m2x2_ops() {
-        let m = M2x2::new([-1.0, 3.0, 2.0, -5.0]);
+        // Logical matrix M = [[-1,  3],
+        //                     [ 2, -5]]
+        // Column-major: col0=[-1, 2], col1=[3, -5]
+        let m = M2x2::new([-1.0, 2.0, 3.0, -5.0]);
         let v = V2::new([1.0, 2.0]);
 
-        assert_eq!(m.transpose(), M2x2::new([-1.0, 2.0, 3.0, -5.0]));
-        assert_eq!(m.abs(), M2x2::new([1.0, 3.0, 2.0, 5.0]));
+        // M^T = [[-1, 2], [3, -5]]  => col0=[-1,3], col1=[2,-5]
+        assert_eq!(m.transpose(), M2x2::new([-1.0, 3.0, 2.0, -5.0]));
+
+        // |M| = [[1,3],[2,5]] => col0=[1,2], col1=[3,5]
+        assert_eq!(m.abs(), M2x2::new([1.0, 2.0, 3.0, 5.0]));
+
+        // det = (-1)(-5) - (3)(2) = -1
         assert_eq!(m.det(), -1.0);
-        assert_eq!(m.inverse(), M2x2::new([5.0, 3.0, 2.0, 1.0]));
+
+        // inv = [[5,3],[2,1]] => col0=[5,2], col1=[3,1]
+        assert_eq!(m.inverse(), M2x2::new([5.0, 2.0, 3.0, 1.0]));
         assert_eq!(m * m.inverse(), M2x2::identity());
 
+        // v * M = [1*(-1)+2*2, 1*3+2*(-5)] = [3, -7]
         assert_eq!(v * m, V2::new([3.0, -7.0]));
+        // M * v = [-1*1+3*2, 2*1+(-5)*2] = [5, -8]
         assert_eq!(m * v, V2::new([5.0, -8.0]));
         assert_eq!(m.solve(V2::new([5.0, -8.0])), v);
 
@@ -333,10 +374,12 @@ mod tests {
         assert_eq!(M2x2::zero().solve(v), V2::zero());
         assert_eq!(m.solve(V2::zero()), V2::zero());
 
-        assert_eq!(m + m, M2x2::new([-2.0, 6.0, 4.0, -10.0]));
+        // m + m: [[-2,6],[4,-10]] => col0=[-2,4], col1=[6,-10]
+        assert_eq!(m + m, M2x2::new([-2.0, 4.0, 6.0, -10.0]));
         assert_eq!(m - m, M2x2::zero());
-        assert_eq!(-m, M2x2::new([1.0, -3.0, -2.0, 5.0]));
-        assert_eq!(m * 2.0, M2x2::new([-2.0, 6.0, 4.0, -10.0]));
-        assert_eq!(2.0 * m, M2x2::new([-2.0, 6.0, 4.0, -10.0]));
+        // -m: [[1,-3],[-2,5]] => col0=[1,-2], col1=[-3,5]
+        assert_eq!(-m, M2x2::new([1.0, -2.0, -3.0, 5.0]));
+        assert_eq!(m * 2.0, M2x2::new([-2.0, 4.0, 6.0, -10.0]));
+        assert_eq!(2.0 * m, M2x2::new([-2.0, 4.0, 6.0, -10.0]));
     }
 }

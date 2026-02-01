@@ -1,3 +1,4 @@
+// ----------------------------------------------------------------------------
 #[inline]
 pub fn float_eq_ulps(lhs: f32, rhs: f32) -> bool {
     if lhs.is_sign_positive() != rhs.is_sign_positive() {
@@ -10,12 +11,14 @@ pub fn float_eq_ulps(lhs: f32, rhs: f32) -> bool {
     }
 }
 
+// ----------------------------------------------------------------------------
 #[inline]
 pub fn float_eq_rel(lhs: f32, rhs: f32) -> bool {
     let diff = (lhs - rhs).abs();
     diff <= 1.0e-6 || float_eq_ulps(lhs, rhs)
 }
 
+// ----------------------------------------------------------------------------
 #[macro_export]
 macro_rules! assert_float_eq {
     ($lhs:expr, $rhs:expr) => {

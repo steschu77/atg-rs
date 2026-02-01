@@ -262,9 +262,9 @@ impl Q {
         let wz = self.x3() * z2;
 
         M3x3::new([
-            1.0 - (yy + zz), xy + wz, xz - wy,
-            xy - wz, 1.0 - (xx + zz), yz + wx,
-            xz + wy, yz - wx, 1.0 - (xx + yy),
+            1.0 - (yy + zz), xy - wz, xz + wy,
+            xy + wz, 1.0 - (xx + zz), yz - wx,
+            xz - wy, yz + wx, 1.0 - (xx + yy),
         ])
     }
 
@@ -272,27 +272,13 @@ impl Q {
     // Convert to a 4×4 rotation matrix (column-major)
     #[rustfmt::skip]
     pub fn as_mat4x4(&self) -> M4x4 {
-        let x2 = self.x0() + self.x0();
-        let y2 = self.x1() + self.x1();
-        let z2 = self.x2() + self.x2();
-
-        let xx = self.x0() * x2;
-        let yy = self.x1() * y2;
-        let zz = self.x2() * z2;
-
-        let xy = self.x0() * y2;
-        let xz = self.x0() * z2;
-        let yz = self.x1() * z2;
-
-        let wx = self.x3() * x2;
-        let wy = self.x3() * y2;
-        let wz = self.x3() * z2;
+        let m3x3 = self.as_mat3x3();
 
         M4x4::new([
-            1.0 - (yy + zz), xy + wz, xz - wy, 0.0,
-            xy - wz, 1.0 - (xx + zz), yz + wx, 0.0,
-            xz + wy, yz - wx, 1.0 - (xx + yy), 0.0,
-                  0.0,        0.0,        0.0, 1.0,
+            m3x3.x00(), m3x3.x10(), m3x3.x20(), 0.0,
+            m3x3.x01(), m3x3.x11(), m3x3.x21(), 0.0,
+            m3x3.x02(), m3x3.x12(), m3x3.x22(), 0.0,
+            0.0,        0.0,        0.0,        1.0,
         ])
     }
 
@@ -300,7 +286,7 @@ impl Q {
     // Rotate a vector
     pub fn rotate(&self, v: &V3) -> V3 {
         let qv = Q::new([v.x0(), v.x1(), v.x2(), 0.0]);
-        let r = *self * qv * self.inverse();
+        let r = self.inverse() * qv * *self;
         V3::new([r.x0(), r.x1(), r.x2()])
     }
 
@@ -319,9 +305,9 @@ impl Q {
             let t = trace + 1.0;
             let s = 0.5 / t.sqrt();
             Q::new([
-                (m.x21() - m.x12()) * s,
-                (m.x02() - m.x20()) * s,
-                (m.x10() - m.x01()) * s,
+                (m.x12() - m.x21()) * s,
+                (m.x20() - m.x02()) * s,
+                (m.x01() - m.x10()) * s,
                 0.25 / s,
             ])
         } else if m.x00() > m.x11() && m.x00() > m.x22() {
@@ -329,27 +315,27 @@ impl Q {
             let s = 0.5 / t.sqrt();
             Q::new([
                 0.25 / s,
-                (m.x01() + m.x10()) * s,
-                (m.x02() + m.x20()) * s,
-                (m.x21() - m.x12()) * s,
+                (m.x10() + m.x01()) * s,
+                (m.x20() + m.x02()) * s,
+                (m.x12() - m.x21()) * s,
             ])
         } else if m.x11() > m.x22() {
             let t = 1.0 - m.x00() + m.x11() - m.x22();
             let s = 0.5 / t.sqrt();
             Q::new([
-                (m.x01() + m.x10()) * s,
+                (m.x10() + m.x01()) * s,
                 0.25 / s,
-                (m.x12() + m.x21()) * s,
-                (m.x02() - m.x20()) * s,
+                (m.x21() + m.x12()) * s,
+                (m.x20() - m.x02()) * s,
             ])
         } else {
             let t = 1.0 - m.x00() - m.x11() + m.x22();
             let s = 0.5 / t.sqrt();
             Q::new([
-                (m.x02() + m.x20()) * s,
-                (m.x12() + m.x21()) * s,
+                (m.x20() + m.x02()) * s,
+                (m.x21() + m.x12()) * s,
                 0.25 / s,
-                (m.x10() - m.x01()) * s,
+                (m.x01() - m.x10()) * s,
             ])
         };
 
@@ -361,7 +347,7 @@ impl Q {
         let m = M3x3::from_cols(*x_axis, *y_axis, *z_axis);
         debug_assert!(m.det() > 0.0, "Basis must be right-handed");
 
-        let q = Q::from_mat3(&m).conjugate();
+        let q = Q::from_mat3(&m);
         debug_assert_eq!(q.rotate(&V3::X0), *x_axis);
         debug_assert_eq!(q.rotate(&V3::X1), *y_axis);
         debug_assert_eq!(q.rotate(&V3::X2), *z_axis);
@@ -415,9 +401,9 @@ mod test {
     fn mat3_to_quat_rot_x_90() {
         let s = 0.5_f32.sqrt();
         let m = M3x3::new([
-            1.0,  0.0, 0.0,
-            0.0,  0.0, 1.0,
-            0.0, -1.0, 0.0
+            1.0, 0.0,  0.0,
+            0.0, 0.0, -1.0,
+            0.0, 1.0,  0.0
         ]);
         let q = Q::from_mat3(&m);
         let expected = Q::new([s, 0.0, 0.0, s]);
@@ -429,9 +415,9 @@ mod test {
     fn mat3_to_quat_rot_y_90() {
         let s = 0.5_f32.sqrt();
         let m = M3x3::new([
-            0.0, 0.0, -1.0,
-            0.0, 1.0,  0.0,
-            1.0, 0.0,  0.0
+             0.0, 0.0, 1.0,
+             0.0, 1.0, 0.0,
+            -1.0, 0.0, 0.0
         ]);
         let q = Q::from_mat3(&m);
         let expected = Q::new([0.0, s, 0.0, s]);
@@ -443,9 +429,9 @@ mod test {
     fn mat3_to_quat_rot_z_90() {
         let s = 0.5_f32.sqrt();
         let m = M3x3::new([
-             0.0, 1.0, 0.0,
-            -1.0, 0.0, 0.0,
-             0.0, 0.0, 1.0
+            0.0, -1.0, 0.0,
+            1.0,  0.0, 0.0,
+            0.0,  0.0, 1.0
         ]);
         let q = Q::from_mat3(&m);
         let expected = Q::new([0.0, 0.0, s, s]);

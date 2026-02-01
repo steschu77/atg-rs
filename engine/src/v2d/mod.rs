@@ -1,4 +1,3 @@
-pub mod affine2x2;
 pub mod affine3x3;
 pub mod affine4x4;
 pub mod float_eq;
