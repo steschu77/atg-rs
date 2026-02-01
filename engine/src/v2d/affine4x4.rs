@@ -4,7 +4,7 @@ use crate::v2d::{m4x4::M4x4, v4::V4};
 #[rustfmt::skip]
 pub fn translate(v: &V4) -> M4x4
 {
-    let [x0, x1, x2, x3] = v.to_array();
+    let [x0, x1, x2, x3] = v.as_array();
 
     M4x4::new([
         1.0, 0.0, 0.0, 0.0,
@@ -16,7 +16,7 @@ pub fn translate(v: &V4) -> M4x4
 
 // ----------------------------------------------------------------------------
 pub fn scale(v: &V4) -> M4x4 {
-    M4x4::diag(v.to_array())
+    M4x4::diag(v.as_array())
 }
 
 // ----------------------------------------------------------------------------
