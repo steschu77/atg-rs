@@ -12,7 +12,6 @@ pub struct M3x3 {
 
 // ----------------------------------------------------------------------------
 impl Default for M3x3 {
-    #[rustfmt::skip]
     fn default() -> Self {
         Self::zero()
     }
@@ -166,6 +165,13 @@ impl std::ops::Index<(usize, usize)> for M3x3 {
 impl std::ops::IndexMut<(usize, usize)> for M3x3 {
     fn index_mut(&mut self, (row, col): (usize, usize)) -> &mut Self::Output {
         &mut self.m[col * 3 + row]
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl From<[f32; 9]> for M3x3 {
+    fn from(m: [f32; 9]) -> Self {
+        M3x3 { m }
     }
 }
 
@@ -338,15 +344,15 @@ impl M3x3 {
 
     // ------------------------------------------------------------------------
     // https://en.wikipedia.org/wiki/Minor_(linear_algebra)
-    pub fn minor<const I: usize, const J: usize>(&self) -> M2x2 {
+    pub fn minor<const ROW: usize, const COL: usize>(&self) -> M2x2 {
         let mut m = [0.0; 4];
         let mut k = 0;
         for i in 0..3 {
-            if i == I {
+            if i == ROW {
                 continue;
             }
             for j in 0..3 {
-                if j == J {
+                if j == COL {
                     continue;
                 }
                 m[k] = self.m[i + j * 3];
