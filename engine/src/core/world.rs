@@ -19,6 +19,7 @@ pub struct World {
     debug: RenderObject,
     terrain_chunks: Vec<RenderObject>,
     terrain_normal_arrows: Vec<RenderObject>,
+    car_wheels: Vec<RenderObject>,
     _font: gl_font::Font,
     t: std::time::Duration,
 }
@@ -94,6 +95,22 @@ impl World {
             }
         }
 
+        use crate::core::gl_pipeline_colored::cylinder;
+        let (verts, indices) = cylinder(12, 1.0, 1.0);
+        let mesh_id = render_context.create_colored_mesh(&verts, &indices, false)?;
+        let car_wheels = vec![RenderObject {
+            name: String::from("car_wheel_front_left"),
+            transform: Transform {
+                position: V4::new([0.0, 0.0, 0.0, 1.0]),
+                rotation: Rotation::default(),
+                size: V4::new([1.0, 1.0, 1.0, 1.0]),
+            },
+            pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
+            mesh_id,
+            material_id: color_id,
+            ..Default::default()
+        }];
+
         let player = Player::new(&mut render_context);
 
         Ok(World {
@@ -104,6 +121,7 @@ impl World {
             debug,
             terrain_chunks,
             terrain_normal_arrows,
+            car_wheels,
             _font: font,
             t,
         })
@@ -154,6 +172,7 @@ impl World {
         objects.extend(self.player.objects.iter().cloned());
         objects.extend(self.player.debug_arrows.iter().cloned());
         objects.push(self.debug.clone());
+        objects.extend(self.car_wheels.iter().cloned());
 
         objects
     }

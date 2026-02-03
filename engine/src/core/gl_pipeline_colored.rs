@@ -71,6 +71,64 @@ pub fn create_plane_mesh() -> (Vec<Vertex>, Vec<u32>) {
 }
 
 // ----------------------------------------------------------------------------
+pub fn cylinder(sides: usize, radius: f32, height: f32) -> (Vec<Vertex>, Vec<u32>) {
+    assert!(sides >= 3);
+
+    let h = V3::new([0.0, height * 0.5, 0.0]);
+    let d_theta = std::f32::consts::TAU / (sides as f32);
+
+    // helper to create `sides` points on a circle, incl. seam point
+    let mut circle = (0..sides)
+        .map(|i| {
+            let theta = d_theta * (i as f32);
+            let (s, c) = theta.sin_cos();
+            (c, s)
+        })
+        .collect::<Vec<_>>();
+    circle.push(circle[0]);
+
+    // top and bottom side vertices
+    let mut verts = Vec::with_capacity(circle.len() * 4 + 2);
+    for (c, s) in &circle {
+        let r = V3::new([radius * c, 0.0, radius * s]);
+        let n = V3::new([*c, 0.0, *s]);
+        verts.push(Vertex { pos: r + h, n });
+        verts.push(Vertex { pos: r - h, n });
+    }
+
+    // top and bottom cap rim vertices
+    let n0 = V3::new([0.0, 1.0, 0.0]);
+    let n1 = V3::new([0.0, -1.0, 0.0]);
+    for (c, s) in &circle {
+        let r = V3::new([radius * c, 0.0, radius * s]);
+        verts.push(Vertex { pos: r + h, n: n0 });
+        verts.push(Vertex { pos: r - h, n: n1 });
+    }
+
+    // top and bottom cap center vertices
+    verts.push(Vertex { pos: h, n: n0 });
+    verts.push(Vertex { pos: -h, n: n1 });
+
+    // indices for the cylinder sides
+    let mut indices = Vec::with_capacity(sides * 6);
+    for i in 0..sides {
+        let i0 = (i * 2) as u32;
+        indices.extend_from_slice(&[i0, i0 + 2, i0 + 1, i0 + 2, i0 + 3, i0 + 1]);
+    }
+
+    // indices for the top and bottom caps
+    let rim = circle.len() as u32 * 2;
+    let center = circle.len() as u32 * 4;
+    for i in 0..sides {
+        let rim0 = rim + (i as u32) * 2;
+        let rim1 = rim0 + 2;
+        indices.extend_from_slice(&[center, rim1, rim0, center + 1, rim0 + 1, rim1 + 1]);
+    }
+
+    (verts, indices)
+}
+
+// ----------------------------------------------------------------------------
 pub fn tetrahedron(side: f32, height: f32) -> Vec<Vertex> {
     let h_tri = side * (3.0_f32).sqrt() * 0.5;
 
