@@ -28,7 +28,13 @@ jobs:
       - name: Add Clippy
         run: rustup component add clippy
 
-      - run: cargo clippy -- -D warnings
+      - name: Run Clippy (no 'game' build on Windows)
+        if: runner.os == 'Windows'
+        run: cargo clippy --workspace --exclude game -- -D warnings
+
+      - name: Run Clippy (full workspace on Linux)
+        if: runner.os != 'Windows'
+        run: cargo clippy --workspace -- -D warnings
 
   fmt:
     name: Check Formatting Rules
