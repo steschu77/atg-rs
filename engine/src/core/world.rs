@@ -37,7 +37,7 @@ impl World {
             color: V3::new([0.0, 1.0, 0.0]), // Green arrows
         });
 
-        let terrain = Terrain::default();
+        let terrain = Terrain::from_png(Path::new("assets/terrain/heightmap.png"))?;
         let camera = Camera::new(V4::new([0.0, 4.0, 4.0, 1.0]), V4::new([0.0, 0.0, 0.0, 1.0]));
         let t = std::time::Duration::ZERO;
 
