@@ -2,7 +2,7 @@ use crate::core::gl_graphics;
 use crate::core::gl_pipeline::{GlMaterial, GlMesh, GlPipeline, GlUniforms};
 use crate::error::Result;
 use crate::sys::opengl as gl;
-use crate::v2d::v3::V3;
+use crate::v2d::{m3x3::M3x3, v3::V3};
 use std::rc::Rc;
 
 // ----------------------------------------------------------------------------
@@ -188,6 +188,14 @@ pub fn arrow(origin: V3, n: V3, length: f32) -> Vec<Vertex> {
     }));
 
     verts
+}
+
+// ----------------------------------------------------------------------------
+pub fn transform_mesh(verts: &mut [Vertex], translation: V3, transform: M3x3) {
+    for v in verts.iter_mut() {
+        v.pos = translation + transform * v.pos;
+        v.n = transform * v.n;
+    }
 }
 
 // ----------------------------------------------------------------------------

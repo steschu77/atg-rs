@@ -6,7 +6,7 @@ use crate::core::gl_text::create_text_mesh;
 use crate::core::{camera::Camera, input, player::Player, terrain::Terrain};
 use crate::error::Result;
 use crate::sys::opengl as gl;
-use crate::v2d::{v3::V3, v4::V4};
+use crate::v2d::{m3x3::M3x3, v3::V3, v4::V4};
 use std::path::Path;
 use std::rc::Rc;
 
@@ -95,21 +95,64 @@ impl World {
             }
         }
 
-        use crate::core::gl_pipeline_colored::cylinder;
-        let (verts, indices) = cylinder(12, 1.0, 1.0);
+        use crate::core::gl_pipeline_colored::{cylinder, transform_mesh};
+        let (mut verts, indices) = cylinder(12, 0.5, 0.3);
+        transform_mesh(
+            &mut verts,
+            V3::default(),
+            M3x3::from_cols(-V3::X1, V3::X0, V3::X2),
+        );
         let mesh_id = render_context.create_colored_mesh(&verts, &indices, false)?;
-        let car_wheels = vec![RenderObject {
-            name: String::from("car_wheel_front_left"),
-            transform: Transform {
-                position: V4::new([0.0, 0.0, 0.0, 1.0]),
-                rotation: Rotation::default(),
-                size: V4::new([1.0, 1.0, 1.0, 1.0]),
+        let car_wheels = vec![
+            RenderObject {
+                name: String::from("car_wheel_front_left"),
+                transform: Transform {
+                    position: V4::new([1.0, 0.0, 2.0, 1.0]),
+                    rotation: Rotation::default(),
+                    size: V4::new([1.0, 1.0, 1.0, 1.0]),
+                },
+                pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
+                mesh_id,
+                material_id: color_id,
+                ..Default::default()
             },
-            pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
-            mesh_id,
-            material_id: color_id,
-            ..Default::default()
-        }];
+            RenderObject {
+                name: String::from("car_wheel_front_right"),
+                transform: Transform {
+                    position: V4::new([-1.0, 0.0, 2.0, 1.0]),
+                    rotation: Rotation::default(),
+                    size: V4::new([1.0, 1.0, 1.0, 1.0]),
+                },
+                pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
+                mesh_id,
+                material_id: color_id,
+                ..Default::default()
+            },
+            RenderObject {
+                name: String::from("car_wheel_rear_left"),
+                transform: Transform {
+                    position: V4::new([1.0, 0.0, -2.0, 1.0]),
+                    rotation: Rotation::default(),
+                    size: V4::new([1.0, 1.0, 1.0, 1.0]),
+                },
+                pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
+                mesh_id,
+                material_id: color_id,
+                ..Default::default()
+            },
+            RenderObject {
+                name: String::from("car_wheel_rear_right"),
+                transform: Transform {
+                    position: V4::new([-1.0, 0.0, -2.0, 1.0]),
+                    rotation: Rotation::default(),
+                    size: V4::new([1.0, 1.0, 1.0, 1.0]),
+                },
+                pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
+                mesh_id,
+                material_id: color_id,
+                ..Default::default()
+            },
+        ];
 
         let player = Player::new(&mut render_context);
 
