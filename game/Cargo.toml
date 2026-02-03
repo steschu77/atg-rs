@@ -14,8 +14,8 @@ windows = { workspace = true, features = ["Win32_System", "Win32_System_LibraryL
 x11 = { workspace = true, features = ["xlib", "glx"] }
 
 [build-dependencies]
-embed-resource = "2.5"
-static_vcruntime = "2.0"
+embed-resource = "3.0"
+static_vcruntime = "3.0"
 
 [lints.clippy]
 collapsible_if = "allow"

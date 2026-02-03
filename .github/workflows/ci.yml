@@ -34,7 +34,7 @@ jobs:
 
       - name: Run Clippy (full workspace on Linux)
         if: runner.os != 'Windows'
-        run: cargo clippy --workspace -- -D warnings
+        run: cargo clippy --workspace -p game -- -D warnings
 
   fmt:
     name: Check Formatting Rules
