@@ -1,5 +1,6 @@
 [workspace]
 members = ["engine", "game"]
+default-members = ["engine"]
 resolver = "2"
 
 [workspace.dependencies]
