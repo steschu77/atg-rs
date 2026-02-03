@@ -1,7 +1,8 @@
 use crate::core::gl_pipeline_colored::{self, Vertex};
 use crate::core::gl_renderer::RenderContext;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::v2d::v3::V3;
+use std::path::Path;
 
 const TERRAIN_RESOLUTION: f32 = 1.0;
 const TERRAIN_RESOLUTION_INV: f32 = 1.0 / TERRAIN_RESOLUTION;
@@ -25,6 +26,35 @@ impl Terrain {
             height,
             heightmap,
         }
+    }
+
+    pub fn from_png(path: &Path) -> Result<Self> {
+        let contents = std::fs::read(path)?;
+        let (png, _plte, data) = miniz::png_read::png_read(&contents)?;
+
+        if png.color_type != miniz::png_read::PNGColorType::Greyscale {
+            return Err(Error::InvalidColorFormat);
+        }
+
+        let h_norm: f32 = 1.0 / 5.0; // 5 levels per meter
+        let width = (png.width + 3) & !3;
+        let height = png.height;
+
+        let mut heightmap: Vec<f32> = vec![0.0; width * height];
+        for y in 0..png.height {
+            let src_offset = y * (png.width + 1) + 1;
+            let dst_offset = y * width;
+            for x in 0..png.width {
+                let height = data[src_offset + x] as f32;
+                heightmap[dst_offset + x] = height * h_norm;
+            }
+        }
+
+        Ok(Terrain {
+            width: width as u32,
+            height: height as u32,
+            heightmap,
+        })
     }
 
     pub fn create_chunk_mesh(
