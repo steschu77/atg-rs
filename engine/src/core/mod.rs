@@ -3,6 +3,7 @@ use crate::error::Result;
 pub mod camera;
 pub mod clock;
 pub mod component;
+pub mod game_input;
 pub mod game_loop;
 pub mod gl_font;
 pub mod gl_graphics;
@@ -25,8 +26,8 @@ pub trait IClock {
 
 // ----------------------------------------------------------------------------
 pub trait IGame {
-    fn input(&mut self, events: &input::Events) -> Result<()>;
-    fn update(&mut self, dt: &std::time::Duration, state: &input::State) -> Result<()>;
+    fn input(&mut self, events: input::Events, state: input::State) -> Result<()>;
+    fn update(&mut self, dt: &std::time::Duration) -> Result<()>;
     fn render(&mut self) -> Result<()>;
 }
 
@@ -94,11 +95,11 @@ pub mod tests {
     }
 
     impl IGame for MockGame<'_> {
-        fn input(&mut self, _events: &input::Events) -> Result<()> {
+        fn input(&mut self, _events: input::Events, _state: input::State) -> Result<()> {
             Ok(())
         }
 
-        fn update(&mut self, _dt: &std::time::Duration, _state: &input::State) -> Result<()> {
+        fn update(&mut self, _dt: &std::time::Duration) -> Result<()> {
             self.update_count += 1;
             self.clock.advance(self.t_update);
             Ok(())
@@ -134,14 +135,15 @@ pub mod tests {
 
     #[test]
     fn test_game() {
-        let input = input::Input::new();
+        let mut input = input::Input::new();
         let clock = MockClock::default();
         let mut game = MockGame::new(
             &clock,
             std::time::Duration::from_millis(10),
             std::time::Duration::from_millis(20),
         );
-        assert_eq!(game.update(&clock.now(), &input.take_state()), Ok(()));
+        assert_eq!(game.input(input.take_events(), input.take_state()), Ok(()));
+        assert_eq!(game.update(&clock.now()), Ok(()));
         assert_eq!(game.render(), Ok(()));
         assert_eq!(game.loops().len(), 1);
     }

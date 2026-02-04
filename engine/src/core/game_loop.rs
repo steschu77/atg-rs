@@ -24,13 +24,13 @@ impl GameLoop {
         // game loop: https://gameprogrammingpatterns.com/game-loop.html
         let t0 = clock.now();
 
-        game.input(events)?;
+        game.input(events.clone(), state.clone())?;
 
         // Slow machines: Clamp number of updates to avoid spiral of death
         // (otherwise the next loop will be late again)
         let updates_needed = (self.t_lag.as_nanos() / self.dt_update.as_nanos()) as u32 + 1;
         for _ in 0..updates_needed.min(4) {
-            game.update(&self.dt_update, state)?;
+            game.update(&self.dt_update)?;
         }
 
         game.render()?;

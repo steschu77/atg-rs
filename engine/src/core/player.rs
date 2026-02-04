@@ -1,6 +1,6 @@
 use crate::core::component::{Component, Context};
+use crate::core::game_input::GameKey;
 use crate::core::gl_renderer::{RenderContext, RenderObject, Rotation, Transform};
-use crate::core::input;
 use crate::error::Result;
 use crate::v2d::q::Q;
 use crate::v2d::{affine4x4, r2::R2, v2::V2, v3::V3, v4::V4};
@@ -404,11 +404,11 @@ impl Component for Player {
         let dt = ctx.dt_secs();
         self.phase_progress += dt;
 
-        let move_forward = ctx.state.is_pressed(input::Key::MoveForward);
-        if ctx.state.is_pressed(input::Key::TurnLeft) {
+        let move_forward = ctx.state.is_pressed(GameKey::MoveForward);
+        if ctx.state.is_pressed(GameKey::StrafeLeft) {
             self.rotation -= TURN_SPEED * dt;
         }
-        if ctx.state.is_pressed(input::Key::TurnRight) {
+        if ctx.state.is_pressed(GameKey::StrafeRight) {
             self.rotation += TURN_SPEED * dt;
         }
 

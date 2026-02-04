@@ -27,8 +27,8 @@ mod win32 {
     use engine::sys::win32::Win32GLContext;
     use engine::util::logger;
     use windows::Win32::UI::Input::{
-        GetRawInputData, HRAWINPUT, KeyboardAndMouse, RAWINPUT, RAWINPUTHEADER, RID_INPUT,
-        RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
+        GetRawInputData, HRAWINPUT, RAWINPUT, RAWINPUTHEADER, RID_INPUT, RIM_TYPEKEYBOARD,
+        RIM_TYPEMOUSE,
     };
     use windows::Win32::{
         Foundation::*,
@@ -200,31 +200,92 @@ mod win32 {
         }
     }
 
+    const VK_MAP: [Option<Key>; 256] = {
+        let mut m = [None; 256];
+        macro_rules! key_map {
+            ($vk:expr, $key:expr) => {
+                m[$vk.0 as usize] = Some($key);
+            };
+        }
+        use windows::Win32::UI::Input::KeyboardAndMouse::*;
+        key_map!(VK_ESCAPE, Key::k_Escape);
+        key_map!(VK_F1, Key::k_F1);
+        key_map!(VK_F2, Key::k_F2);
+        key_map!(VK_F3, Key::k_F3);
+        key_map!(VK_F4, Key::k_F4);
+        key_map!(VK_F5, Key::k_F5);
+        key_map!(VK_F6, Key::k_F6);
+        key_map!(VK_F7, Key::k_F7);
+        key_map!(VK_F8, Key::k_F8);
+        key_map!(VK_F9, Key::k_F9);
+        key_map!(VK_F10, Key::k_F10);
+        key_map!(VK_F11, Key::k_F11);
+        key_map!(VK_F12, Key::k_F12);
+        key_map!(VK_RETURN, Key::k_Return);
+        key_map!(VK_SPACE, Key::k_Space);
+        key_map!(VK_BACK, Key::k_Backspace);
+        key_map!(VK_TAB, Key::k_Tab);
+        key_map!(VK_INSERT, Key::k_Insert);
+        key_map!(VK_DELETE, Key::k_Delete);
+        key_map!(VK_HOME, Key::k_Home);
+        key_map!(VK_END, Key::k_End);
+        key_map!(VK_PRIOR, Key::k_PageUp);
+        key_map!(VK_NEXT, Key::k_PageDown);
+        key_map!(VK_UP, Key::k_Up);
+        key_map!(VK_DOWN, Key::k_Down);
+        key_map!(VK_LEFT, Key::k_Left);
+        key_map!(VK_RIGHT, Key::k_Right);
+        key_map!(VK_LSHIFT, Key::k_LeftShift);
+        key_map!(VK_LCONTROL, Key::k_LeftCtrl);
+        key_map!(VK_LMENU, Key::k_LeftAlt);
+        key_map!(VK_LWIN, Key::k_LeftSuper);
+        key_map!(VK_RSHIFT, Key::k_RightShift);
+        key_map!(VK_RCONTROL, Key::k_RightCtrl);
+        key_map!(VK_RMENU, Key::k_RightAlt);
+        key_map!(VK_RWIN, Key::k_RightSuper);
+        key_map!(VK_0, Key::k_0);
+        key_map!(VK_1, Key::k_1);
+        key_map!(VK_2, Key::k_2);
+        key_map!(VK_3, Key::k_3);
+        key_map!(VK_4, Key::k_4);
+        key_map!(VK_5, Key::k_5);
+        key_map!(VK_6, Key::k_6);
+        key_map!(VK_7, Key::k_7);
+        key_map!(VK_8, Key::k_8);
+        key_map!(VK_9, Key::k_9);
+        key_map!(VK_A, Key::k_A);
+        key_map!(VK_B, Key::k_B);
+        key_map!(VK_C, Key::k_C);
+        key_map!(VK_D, Key::k_D);
+        key_map!(VK_E, Key::k_E);
+        key_map!(VK_F, Key::k_F);
+        key_map!(VK_G, Key::k_G);
+        key_map!(VK_H, Key::k_H);
+        key_map!(VK_I, Key::k_I);
+        key_map!(VK_J, Key::k_J);
+        key_map!(VK_K, Key::k_K);
+        key_map!(VK_L, Key::k_L);
+        key_map!(VK_M, Key::k_M);
+        key_map!(VK_N, Key::k_N);
+        key_map!(VK_O, Key::k_O);
+        key_map!(VK_P, Key::k_P);
+        key_map!(VK_Q, Key::k_Q);
+        key_map!(VK_R, Key::k_R);
+        key_map!(VK_S, Key::k_S);
+        key_map!(VK_T, Key::k_T);
+        key_map!(VK_U, Key::k_U);
+        key_map!(VK_V, Key::k_V);
+        key_map!(VK_W, Key::k_W);
+        key_map!(VK_X, Key::k_X);
+        key_map!(VK_Y, Key::k_Y);
+        key_map!(VK_Z, Key::k_Z);
+
+        m
+    };
+
     // ------------------------------------------------------------------------
     fn vk_to_key(vk: u32) -> Option<Key> {
-        const VK_ESCAPE: u32 = KeyboardAndMouse::VK_ESCAPE.0 as u32;
-        const VK_LEFT: u32 = KeyboardAndMouse::VK_LEFT.0 as u32;
-        const VK_RIGHT: u32 = KeyboardAndMouse::VK_RIGHT.0 as u32;
-        const VK_UP: u32 = KeyboardAndMouse::VK_UP.0 as u32;
-        const VK_DOWN: u32 = KeyboardAndMouse::VK_DOWN.0 as u32;
-        const VK_W: u32 = KeyboardAndMouse::VK_W.0 as u32;
-        const VK_A: u32 = KeyboardAndMouse::VK_A.0 as u32;
-        const VK_S: u32 = KeyboardAndMouse::VK_S.0 as u32;
-        const VK_D: u32 = KeyboardAndMouse::VK_D.0 as u32;
-
-        match vk {
-            VK_ESCAPE => Some(Key::Exit),
-            VK_LEFT => Some(Key::LookLeft),
-            VK_RIGHT => Some(Key::LookRight),
-            VK_UP => Some(Key::LookUp),
-            VK_DOWN => Some(Key::LookDown),
-            VK_W => Some(Key::MoveForward),
-            VK_S => Some(Key::MoveBackward),
-            VK_A => Some(Key::TurnLeft),
-            VK_D => Some(Key::TurnRight),
-
-            _ => None,
-        }
+        VK_MAP.get(vk as usize).copied().flatten()
     }
 
     // ------------------------------------------------------------------------
@@ -261,6 +322,7 @@ mod linux {
         XMapWindow, XNextEvent, XOpenDisplay, XPending, XRaiseWindow, XRootWindow, XSelectInput,
     };
     //use x11::xlib::{XDisplayHeight, XDisplayWidth};
+    use std::collections::HashMap;
 
     pub fn main() -> Result<()> {
         let _ = logger::init_logger(log::LevelFilter::Info);
@@ -296,6 +358,7 @@ mod linux {
 
         game.resize(cx as i32, cy as i32);
 
+        let key_map = key_map();
         loop {
             while unsafe { XPending(display.as_ptr()) } > 0 {
                 let mut event: XEvent = unsafe { std::mem::zeroed() };
@@ -304,8 +367,8 @@ mod linux {
                 match unsafe { event.type_ } {
                     x11::xlib::Expose => {}
                     x11::xlib::KeyPress => {
-                        let keysym = unsafe { XLookupKeysym(&mut event.key as *mut _, 0) };
-                        if let Some(key) = xkey_to_key(keysym as u32) {
+                        let keysym = unsafe { XLookupKeysym(&mut event.key as *mut _, 0) } as u32;
+                        if let Some(key) = key_map.get(&keysym).copied() {
                             input.add_event(input::Event::KeyDown { key });
                         }
                     }
@@ -330,19 +393,80 @@ mod linux {
     }
 
     #[allow(non_upper_case_globals)]
-    fn xkey_to_key(keysym: u32) -> Option<Key> {
-        use x11::keysym::{XK_A, XK_D, XK_Down, XK_Escape, XK_Left, XK_Right, XK_S, XK_Up, XK_W};
-        match keysym {
-            XK_Escape => Some(Key::Exit),
-            XK_Left => Some(Key::LookLeft),
-            XK_Right => Some(Key::LookRight),
-            XK_Up => Some(Key::LookUp),
-            XK_Down => Some(Key::LookDown),
-            XK_W => Some(Key::MoveForward),
-            XK_S => Some(Key::MoveBackward),
-            XK_A => Some(Key::StrafeLeft),
-            XK_D => Some(Key::StrafeRight),
-            _ => None,
-        }
+    fn key_map() -> HashMap<u32, Key> {
+        use x11::keysym::*;
+        HashMap::from([
+            (XK_Escape, Key::k_Escape),
+            (XK_F1, Key::k_F1),
+            (XK_F2, Key::k_F2),
+            (XK_F3, Key::k_F3),
+            (XK_F4, Key::k_F4),
+            (XK_F5, Key::k_F5),
+            (XK_F6, Key::k_F6),
+            (XK_F7, Key::k_F7),
+            (XK_F8, Key::k_F8),
+            (XK_F9, Key::k_F9),
+            (XK_F10, Key::k_F10),
+            (XK_F11, Key::k_F11),
+            (XK_F12, Key::k_F12),
+            (XK_Return, Key::k_Return),
+            (XK_space, Key::k_Space),
+            (XK_BackSpace, Key::k_Backspace),
+            (XK_Tab, Key::k_Tab),
+            (XK_Insert, Key::k_Insert),
+            (XK_Delete, Key::k_Delete),
+            (XK_Home, Key::k_Home),
+            (XK_End, Key::k_End),
+            (XK_Page_Up, Key::k_PageUp),
+            (XK_Page_Down, Key::k_PageDown),
+            (XK_Up, Key::k_Up),
+            (XK_Down, Key::k_Down),
+            (XK_Left, Key::k_Left),
+            (XK_Right, Key::k_Right),
+            (XK_Shift_L, Key::k_LeftShift),
+            (XK_Control_L, Key::k_LeftCtrl),
+            (XK_Alt_L, Key::k_LeftAlt),
+            (XK_Super_L, Key::k_LeftSuper),
+            (XK_Shift_R, Key::k_RightShift),
+            (XK_Control_R, Key::k_RightCtrl),
+            (XK_Alt_R, Key::k_RightAlt),
+            (XK_Super_R, Key::k_RightSuper),
+            (XK_0, Key::k_0),
+            (XK_1, Key::k_1),
+            (XK_2, Key::k_2),
+            (XK_3, Key::k_3),
+            (XK_4, Key::k_4),
+            (XK_5, Key::k_5),
+            (XK_6, Key::k_6),
+            (XK_7, Key::k_7),
+            (XK_8, Key::k_8),
+            (XK_9, Key::k_9),
+            (XK_A, Key::k_A),
+            (XK_B, Key::k_B),
+            (XK_C, Key::k_C),
+            (XK_D, Key::k_D),
+            (XK_E, Key::k_E),
+            (XK_F, Key::k_F),
+            (XK_G, Key::k_G),
+            (XK_H, Key::k_H),
+            (XK_I, Key::k_I),
+            (XK_J, Key::k_J),
+            (XK_K, Key::k_K),
+            (XK_L, Key::k_L),
+            (XK_M, Key::k_M),
+            (XK_N, Key::k_N),
+            (XK_O, Key::k_O),
+            (XK_P, Key::k_P),
+            (XK_Q, Key::k_Q),
+            (XK_R, Key::k_R),
+            (XK_S, Key::k_S),
+            (XK_T, Key::k_T),
+            (XK_U, Key::k_U),
+            (XK_V, Key::k_V),
+            (XK_W, Key::k_W),
+            (XK_X, Key::k_X),
+            (XK_Y, Key::k_Y),
+            (XK_Z, Key::k_Z),
+        ])
     }
 }
