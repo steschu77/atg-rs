@@ -1,17 +1,19 @@
 // ----------------------------------------------------------------------------
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[allow(non_camel_case_types)]
+#[rustfmt::skip]
 pub enum Key {
-    Exit = 0,
-    LookLeft = 1,
-    LookRight = 2,
-    LookUp = 3,
-    LookDown = 4,
-    MoveForward = 5,
-    MoveBackward = 6,
-    TurnLeft = 7,
-    TurnRight = 8,
-    StrafeLeft = 9,
-    StrafeRight = 10,
+    k_Escape,
+    k_F1, k_F2, k_F3, k_F4, k_F5, k_F6, k_F7, k_F8, k_F9, k_F10, k_F11, k_F12,
+    k_Return, k_Space, k_Backspace, k_Tab,
+    k_Insert, k_Delete, k_Home, k_End, k_PageUp, k_PageDown,
+    k_Up, k_Down, k_Left, k_Right,
+    k_LeftShift, k_LeftCtrl, k_LeftAlt, k_LeftSuper,
+    k_RightShift, k_RightCtrl, k_RightAlt, k_RightSuper,
+    k_0, k_1, k_2, k_3, k_4, k_5, k_6, k_7, k_8, k_9,
+    k_A, k_B, k_C, k_D, k_E, k_F, k_G, k_H, k_I, k_J,
+    k_K, k_L, k_M, k_N, k_O, k_P, k_Q, k_R, k_S, k_T,
+    k_U, k_V, k_W, k_X, k_Y, k_Z,
 }
 
 // ----------------------------------------------------------------------------

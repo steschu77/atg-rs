@@ -3,7 +3,7 @@ use crate::core::gl_font;
 use crate::core::gl_pipeline::{self, GlMaterial};
 use crate::core::gl_renderer::{RenderContext, RenderObject, Rotation, Transform};
 use crate::core::gl_text::create_text_mesh;
-use crate::core::{camera::Camera, input, player::Player, terrain::Terrain};
+use crate::core::{camera::Camera, game_input, input, player::Player, terrain::Terrain};
 use crate::error::Result;
 use crate::sys::opengl as gl;
 use crate::v2d::{m3x3::M3x3, v3::V3, v4::V4};
@@ -13,6 +13,7 @@ use std::rc::Rc;
 // ----------------------------------------------------------------------------
 pub struct World {
     render_context: RenderContext,
+    input_context: game_input::InputContext,
     terrain: Terrain,
     player: Player,
     camera: Camera,
@@ -158,6 +159,7 @@ impl World {
 
         Ok(World {
             render_context,
+            input_context: game_input::InputContext::default(),
             terrain,
             camera,
             player,
@@ -170,16 +172,17 @@ impl World {
         })
     }
 
-    pub fn input(&mut self, events: &input::Events) -> Result<()> {
+    pub fn input(&mut self, events: &input::Events, state: input::State) -> Result<()> {
+        self.input_context.update_state(state);
         self.camera.input(events)?;
         Ok(())
     }
 
-    pub fn update(&mut self, dt: &std::time::Duration, state: &input::State) -> Result<()> {
+    pub fn update(&mut self, dt: &std::time::Duration) -> Result<()> {
         self.t += *dt;
         let ctx = Context {
             dt: *dt,
-            state,
+            state: &self.input_context,
             terrain: &self.terrain,
         };
 

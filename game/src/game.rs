@@ -11,13 +11,13 @@ pub struct Game {
 }
 
 impl IGame for Game {
-    fn input(&mut self, events: &input::Events) -> Result<()> {
-        self.world.input(events)?;
-        self.input_events(events)
+    fn input(&mut self, events: input::Events, state: input::State) -> Result<()> {
+        self.world.input(&events, state)?;
+        self.input_events(&events)
     }
 
-    fn update(&mut self, dt: &std::time::Duration, state: &input::State) -> Result<()> {
-        self.world.update(dt, state)?;
+    fn update(&mut self, dt: &std::time::Duration) -> Result<()> {
+        self.world.update(dt)?;
         Ok(())
     }
 
@@ -47,7 +47,7 @@ impl Game {
         for event in events {
             match event {
                 input::Event::KeyUp {
-                    key: input::Key::Exit,
+                    key: input::Key::k_Escape,
                 } => {
                     return Err(Error::GameOver);
                 }

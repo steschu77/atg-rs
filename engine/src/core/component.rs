@@ -1,4 +1,4 @@
-use crate::core::input;
+use crate::core::game_input;
 use crate::core::terrain;
 use crate::error::Result;
 use std::time::Duration;
@@ -7,7 +7,7 @@ use std::time::Duration;
 #[derive(Debug)]
 pub struct Context<'a> {
     pub dt: Duration,
-    pub state: &'a input::State,
+    pub state: &'a game_input::InputContext,
     pub terrain: &'a terrain::Terrain,
 }
 
