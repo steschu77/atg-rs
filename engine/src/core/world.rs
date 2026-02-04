@@ -1,12 +1,18 @@
-use crate::core::component::{Component, Context};
-use crate::core::gl_font;
-use crate::core::gl_pipeline::{self, GlMaterial};
-use crate::core::gl_renderer::{RenderContext, RenderObject, Rotation, Transform};
-use crate::core::gl_text::create_text_mesh;
-use crate::core::{camera::Camera, game_input, input, player::Player, terrain::Terrain};
+use crate::core::{
+    camera::Camera,
+    car::{Car, Geometry},
+    component::{Component, Context},
+    game_input, gl_font,
+    gl_pipeline::{self, GlMaterial},
+    gl_renderer::{RenderContext, RenderObject, Rotation, Transform},
+    gl_text::create_text_mesh,
+    input,
+    player::Player,
+    terrain::Terrain,
+};
 use crate::error::Result;
 use crate::sys::opengl as gl;
-use crate::v2d::{m3x3::M3x3, v3::V3, v4::V4};
+use crate::v2d::{v3::V3, v4::V4};
 use std::path::Path;
 use std::rc::Rc;
 
@@ -17,14 +23,15 @@ pub struct World {
     terrain: Terrain,
     player: Player,
     camera: Camera,
+    car: Car,
     debug: RenderObject,
     terrain_chunks: Vec<RenderObject>,
     terrain_normal_arrows: Vec<RenderObject>,
-    car_wheels: Vec<RenderObject>,
     _font: gl_font::Font,
     t: std::time::Duration,
 }
 
+// ----------------------------------------------------------------------------
 impl World {
     pub fn new(gl: Rc<gl::OpenGlFunctions>) -> Result<Self> {
         let font = gl_font::Font::load(&gl, Path::new("assets/fonts/roboto"))?;
@@ -38,7 +45,8 @@ impl World {
             color: V3::new([0.0, 1.0, 0.0]), // Green arrows
         });
 
-        let terrain = Terrain::from_png(Path::new("assets/terrain/heightmap.png"))?;
+        let terrain = Terrain::new(256, 256);
+        //let terrain = Terrain::from_png(Path::new("assets/terrain/heightmap.png"))?;
         let camera = Camera::new(V4::new([0.0, 4.0, 4.0, 1.0]), V4::new([0.0, 0.0, 0.0, 1.0]));
         let t = std::time::Duration::ZERO;
 
@@ -96,66 +104,18 @@ impl World {
             }
         }
 
-        use crate::core::gl_pipeline_colored::{cylinder, transform_mesh};
-        let (mut verts, indices) = cylinder(12, 0.5, 0.3);
-        transform_mesh(
-            &mut verts,
-            V3::default(),
-            M3x3::from_cols(-V3::X1, V3::X0, V3::X2),
-        );
-        let mesh_id = render_context.create_colored_mesh(&verts, &indices, false)?;
-        let car_wheels = vec![
-            RenderObject {
-                name: String::from("car_wheel_front_left"),
-                transform: Transform {
-                    position: V4::new([1.0, 0.0, 2.0, 1.0]),
-                    rotation: Rotation::default(),
-                    size: V4::new([1.0, 1.0, 1.0, 1.0]),
-                },
-                pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
-                mesh_id,
-                material_id: color_id,
-                ..Default::default()
-            },
-            RenderObject {
-                name: String::from("car_wheel_front_right"),
-                transform: Transform {
-                    position: V4::new([-1.0, 0.0, 2.0, 1.0]),
-                    rotation: Rotation::default(),
-                    size: V4::new([1.0, 1.0, 1.0, 1.0]),
-                },
-                pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
-                mesh_id,
-                material_id: color_id,
-                ..Default::default()
-            },
-            RenderObject {
-                name: String::from("car_wheel_rear_left"),
-                transform: Transform {
-                    position: V4::new([1.0, 0.0, -2.0, 1.0]),
-                    rotation: Rotation::default(),
-                    size: V4::new([1.0, 1.0, 1.0, 1.0]),
-                },
-                pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
-                mesh_id,
-                material_id: color_id,
-                ..Default::default()
-            },
-            RenderObject {
-                name: String::from("car_wheel_rear_right"),
-                transform: Transform {
-                    position: V4::new([-1.0, 0.0, -2.0, 1.0]),
-                    rotation: Rotation::default(),
-                    size: V4::new([1.0, 1.0, 1.0, 1.0]),
-                },
-                pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
-                mesh_id,
-                material_id: color_id,
-                ..Default::default()
-            },
-        ];
-
         let player = Player::new(&mut render_context);
+
+        let car_geo = Geometry {
+            length: 4.0,
+            width: 1.7,
+            height: 1.5,
+            wheel_base: 2.5,
+            wheel_track: 2.0,
+            wheel_radius: 0.4,
+            wheel_width: 0.3,
+        };
+        let car = Car::new(&mut render_context, car_geo)?;
 
         Ok(World {
             render_context,
@@ -166,7 +126,7 @@ impl World {
             debug,
             terrain_chunks,
             terrain_normal_arrows,
-            car_wheels,
+            car,
             _font: font,
             t,
         })
@@ -188,6 +148,7 @@ impl World {
 
         self.camera.update(&ctx)?;
         self.player.update(&ctx)?;
+        self.car.update(&ctx)?;
 
         self.player.update_debug_arrows(&mut self.render_context)?;
 
@@ -197,14 +158,16 @@ impl World {
             .update_msdftex_mesh(self.debug.mesh_id, &mesh)?;
         self.debug.transform.position = self.player.position();
 
-        let player_forward = V4::new([
+        let _player_forward = V4::new([
             self.player.rotation.x_axis().x0(),
             0.0,
             self.player.rotation.x_axis().x1(),
             0.0,
         ]);
 
-        self.camera.look_at(self.player.position(), player_forward);
+        let (forward, position) = self.car.transform();
+
+        self.camera.look_at(position, forward);
         Ok(())
     }
 
@@ -218,7 +181,7 @@ impl World {
         objects.extend(self.player.objects.iter().cloned());
         objects.extend(self.player.debug_arrows.iter().cloned());
         objects.push(self.debug.clone());
-        objects.extend(self.car_wheels.iter().cloned());
+        objects.extend(self.car.objects.iter().cloned());
 
         objects
     }

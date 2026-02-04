@@ -6,6 +6,14 @@ use crate::v2d::q::Q;
 use crate::v2d::{affine4x4, r2::R2, v2::V2, v3::V3, v4::V4};
 
 // ----------------------------------------------------------------------------
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerMode {
+    #[default]
+    OnFoot,
+    InCar,
+}
+
+// ----------------------------------------------------------------------------
 // Terminology based on
 // https://www.bostonoandp.com/Customer-Content/www/CMS/files/GaitTerminology.pdf
 
@@ -126,6 +134,7 @@ pub struct StepAnimation {
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
 pub struct Player {
+    pub mode: PlayerMode,
     pub objects: [RenderObject; 4],
     pub debug_arrows: [RenderObject; 2],
     pub rotation: R2,
@@ -188,6 +197,7 @@ impl Player {
             .create_colored_mesh(&arrow_verts, &[], true)
             .unwrap();
         Self {
+            mode: PlayerMode::InCar,
             objects: [
                 RenderObject {
                     name: String::from("player:body"),
@@ -404,12 +414,15 @@ impl Component for Player {
         let dt = ctx.dt_secs();
         self.phase_progress += dt;
 
-        let move_forward = ctx.state.is_pressed(GameKey::MoveForward);
-        if ctx.state.is_pressed(GameKey::StrafeLeft) {
-            self.rotation -= TURN_SPEED * dt;
-        }
-        if ctx.state.is_pressed(GameKey::StrafeRight) {
-            self.rotation += TURN_SPEED * dt;
+        let mut move_forward = false;
+        if self.mode == PlayerMode::OnFoot {
+            move_forward = ctx.state.is_pressed(GameKey::MoveForward);
+            if ctx.state.is_pressed(GameKey::StrafeLeft) {
+                self.rotation -= TURN_SPEED * dt;
+            }
+            if ctx.state.is_pressed(GameKey::StrafeRight) {
+                self.rotation += TURN_SPEED * dt;
+            }
         }
 
         let mut phase = self.phase_progress * self.step_speed;
