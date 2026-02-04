@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![warn(unused_imports)]
+
 pub mod core;
 pub mod gfx;
 pub mod sys;
