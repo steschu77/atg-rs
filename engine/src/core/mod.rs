@@ -1,6 +1,7 @@
 use crate::error::Result;
 
 pub mod camera;
+pub mod car;
 pub mod clock;
 pub mod component;
 pub mod game_input;
