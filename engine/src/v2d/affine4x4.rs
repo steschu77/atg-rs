@@ -23,9 +23,7 @@ pub fn scale(v: &V4) -> M4x4 {
 #[rustfmt::skip]
 pub fn rotate_x0(rad: f32) -> M4x4
 {
-    let s = rad.sin();
-    let c = rad.cos();
-
+    let (s, c) = rad.sin_cos();
     M4x4::new([
         1.0, 0.0, 0.0, 0.0,
         0.0,   c,  -s, 0.0,
@@ -38,9 +36,7 @@ pub fn rotate_x0(rad: f32) -> M4x4
 #[rustfmt::skip]
 pub fn rotate_x1(rad: f32) -> M4x4
 {
-    let s = rad.sin();
-    let c = rad.cos();
-
+    let (s, c) = rad.sin_cos();
     M4x4::new([
           c, 0.0,   s, 0.0,
         0.0, 1.0, 0.0, 0.0,
@@ -52,9 +48,7 @@ pub fn rotate_x1(rad: f32) -> M4x4
 // ----------------------------------------------------------------------------
 #[rustfmt::skip]
 pub fn rotate_x2(rad: f32) -> M4x4 {
-    let s = rad.sin();
-    let c = rad.cos();
-
+    let (s, c) = rad.sin_cos();
     M4x4::new([
           c,  -s, 0.0, 0.0,
           s,   c, 0.0, 0.0,
@@ -66,8 +60,7 @@ pub fn rotate_x2(rad: f32) -> M4x4 {
 // ----------------------------------------------------------------------------
 #[rustfmt::skip]
 pub fn rotate(v: &V4, rad: f32) -> M4x4 {
-    let s = rad.sin();
-    let c = rad.cos();
+    let (s, c) = rad.sin_cos();
 
     let vs = s * *v;
 
