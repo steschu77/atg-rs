@@ -1,7 +1,9 @@
-use super::v3::V3;
-use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use std::fmt;
+use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
 
+use super::Positive;
 use super::float_eq::float_eq_rel;
+use super::v3::V3;
 
 // ----------------------------------------------------------------------------
 #[derive(Debug, Copy, Clone)]
@@ -17,11 +19,25 @@ impl Default for V2 {
 }
 
 // ----------------------------------------------------------------------------
+impl fmt::Display for V2 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "V2({:.2}, {:.2})", self.x0(), self.x1())
+    }
+}
+
+// ----------------------------------------------------------------------------
 impl PartialEq for V2 {
     #[rustfmt::skip]
     fn eq(&self, rhs: &Self) -> bool {
         float_eq_rel(self.x0(), rhs.x0()) &&
         float_eq_rel(self.x1(), rhs.x1())
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl Positive for V2 {
+    fn is_positive(&self) -> bool {
+        self.x0().is_positive() && self.x1().is_positive()
     }
 }
 
@@ -60,6 +76,19 @@ impl Mul<f32> for V2 {
 }
 
 // ----------------------------------------------------------------------------
+// V2 / f32 -> V2
+impl Div<f32> for V2 {
+    type Output = Self;
+
+    fn div(self, s: f32) -> Self {
+        let inv_s = 1.0 / s;
+        let x0 = self.x0() * inv_s;
+        let x1 = self.x1() * inv_s;
+        V2::new([x0, x1])
+    }
+}
+
+// ----------------------------------------------------------------------------
 // f32 * V2 -> V2
 impl Mul<V2> for f32 {
     type Output = V2;
@@ -67,6 +96,18 @@ impl Mul<V2> for f32 {
     fn mul(self, v: V2) -> V2 {
         let x0 = self * v.x0();
         let x1 = self * v.x1();
+        V2::new([x0, x1])
+    }
+}
+
+// ----------------------------------------------------------------------------
+// f32 / V2 -> V2
+impl Div<V2> for f32 {
+    type Output = V2;
+
+    fn div(self, v: V2) -> V2 {
+        let x0 = self / v.x0();
+        let x1 = self / v.x1();
         V2::new([x0, x1])
     }
 }

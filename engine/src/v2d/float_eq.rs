@@ -22,6 +22,11 @@ pub fn float_eq_rel(lhs: f32, rhs: f32) -> bool {
 #[macro_export]
 macro_rules! assert_float_eq {
     ($lhs:expr, $rhs:expr) => {
-        assert!(float_eq_rel($lhs, $rhs), "{:?} != {:?}", $lhs, $rhs);
+        assert!(
+            $crate::v2d::float_eq::float_eq_rel($lhs, $rhs),
+            "{:?} != {:?}",
+            $lhs,
+            $rhs
+        );
     };
 }
