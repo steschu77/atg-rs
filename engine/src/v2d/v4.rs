@@ -1,6 +1,7 @@
 use std::fmt;
-use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
 
+use super::Positive;
 use super::float_eq::float_eq_rel;
 use super::v3::V3;
 
@@ -39,6 +40,17 @@ impl PartialEq for V4 {
         float_eq_rel(self.x1(), rhs.x1()) &&
         float_eq_rel(self.x2(), rhs.x2()) &&
         float_eq_rel(self.x3(), rhs.x3())
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl Positive for V4 {
+    #[rustfmt::skip]
+    fn is_positive(&self) -> bool {
+        self.x0().is_positive() &&
+        self.x1().is_positive() &&
+        self.x2().is_positive() &&
+        self.x3().is_positive()
     }
 }
 
@@ -83,6 +95,21 @@ impl Mul<f32> for V4 {
 }
 
 // ----------------------------------------------------------------------------
+// V4 / f32 -> V4
+impl Div<f32> for V4 {
+    type Output = Self;
+
+    fn div(self, s: f32) -> Self {
+        let inv_s = 1.0 / s;
+        let x0 = self.x0() * inv_s;
+        let x1 = self.x1() * inv_s;
+        let x2 = self.x2() * inv_s;
+        let x3 = self.x3() * inv_s;
+        V4::new([x0, x1, x2, x3])
+    }
+}
+
+// ----------------------------------------------------------------------------
 // f32 * V4 -> V4
 impl Mul<V4> for f32 {
     type Output = V4;
@@ -92,6 +119,20 @@ impl Mul<V4> for f32 {
         let x1 = self * v.x1();
         let x2 = self * v.x2();
         let x3 = self * v.x3();
+        V4::new([x0, x1, x2, x3])
+    }
+}
+
+// ----------------------------------------------------------------------------
+// f32 / V4 -> V4
+impl Div<V4> for f32 {
+    type Output = V4;
+
+    fn div(self, v: V4) -> V4 {
+        let x0 = self / v.x0();
+        let x1 = self / v.x1();
+        let x2 = self / v.x2();
+        let x3 = self / v.x3();
         V4::new([x0, x1, x2, x3])
     }
 }
@@ -311,7 +352,9 @@ mod tests {
         assert_eq!(v0 + v1, V4::new([-3.0, 3.0, 7.0, 1.0]));
         assert_eq!(v0 - v1, V4::new([1.0, -1.0, 3.0, 5.0]));
         assert_eq!(v0 * 2.0, V4::new([-2.0, 2.0, 10.0, 6.0]));
+        assert_eq!(v1 / 2.0, V4::new([-1.0, 1.0, 1.0, -1.0]));
         assert_eq!(2.0 * v0, V4::new([-2.0, 2.0, 10.0, 6.0]));
+        assert_eq!(2.0 / v1, V4::new([-1.0, 1.0, 1.0, -1.0]));
         assert_eq!(v0 * v1, 8.0);
         assert_eq!(-v0, V4::new([1.0, -1.0, -5.0, -3.0]));
         assert_eq!(v1.length2(), 16.0);
@@ -319,5 +362,6 @@ mod tests {
         assert_eq!(v1.norm(), V4::new([-0.5, 0.5, 0.5, -0.5]));
         assert_eq!(v0.abs(), V4::new([1.0, 1.0, 5.0, 3.0]));
         assert_eq!(V4::distance(&v0, &v1), 6.0);
+        assert!(!v0.is_positive());
     }
 }

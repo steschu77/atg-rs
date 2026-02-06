@@ -1,6 +1,7 @@
 use std::fmt;
-use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
 
+use super::Positive;
 use super::float_eq::float_eq_rel;
 use super::v2::V2;
 use super::v4::V4;
@@ -42,6 +43,13 @@ impl PartialEq for V3 {
 }
 
 // ----------------------------------------------------------------------------
+impl Positive for V3 {
+    fn is_positive(&self) -> bool {
+        self.x0().is_positive() && self.x1().is_positive() && self.x2().is_positive()
+    }
+}
+
+// ----------------------------------------------------------------------------
 impl Add for V3 {
     type Output = Self;
 
@@ -79,6 +87,20 @@ impl Mul<f32> for V3 {
 }
 
 // ----------------------------------------------------------------------------
+// V3 / f32 -> V3
+impl Div<f32> for V3 {
+    type Output = Self;
+
+    fn div(self, s: f32) -> Self {
+        let inv_s = 1.0 / s;
+        let x0 = self.x0() * inv_s;
+        let x1 = self.x1() * inv_s;
+        let x2 = self.x2() * inv_s;
+        V3::new([x0, x1, x2])
+    }
+}
+
+// ----------------------------------------------------------------------------
 // f32 * V3 -> V3
 impl Mul<V3> for f32 {
     type Output = V3;
@@ -87,6 +109,19 @@ impl Mul<V3> for f32 {
         let x0 = self * v.x0();
         let x1 = self * v.x1();
         let x2 = self * v.x2();
+        V3::new([x0, x1, x2])
+    }
+}
+
+// ----------------------------------------------------------------------------
+// f32 / V3 -> V3
+impl Div<V3> for f32 {
+    type Output = V3;
+
+    fn div(self, v: V3) -> V3 {
+        let x0 = self / v.x0();
+        let x1 = self / v.x1();
+        let x2 = self / v.x2();
         V3::new([x0, x1, x2])
     }
 }
@@ -164,6 +199,16 @@ impl V3 {
     }
 
     // ------------------------------------------------------------------------
+    pub const fn one() -> Self {
+        V3::new([1.0, 1.0, 1.0])
+    }
+
+    // ------------------------------------------------------------------------
+    pub const fn uniform(value: f32) -> Self {
+        V3::new([value, value, value])
+    }
+
+    // ------------------------------------------------------------------------
     pub const fn from_v2(v: &V2, z: f32) -> Self {
         V3::new([v.x0(), v.x1(), z])
     }
@@ -195,6 +240,8 @@ impl V3 {
     pub const X0: V3 = V3::new([1.0, 0.0, 0.0]);
     pub const X1: V3 = V3::new([0.0, 1.0, 0.0]);
     pub const X2: V3 = V3::new([0.0, 0.0, 1.0]);
+    pub const ZERO: V3 = V3::zero();
+    pub const ONE: V3 = V3::one();
 
     // ------------------------------------------------------------------------
     pub const fn x0(&self) -> f32 {
@@ -290,7 +337,9 @@ mod tests {
         assert_eq!(v0 + v1, V3::new([4.0, 6.0, 1.0]));
         assert_eq!(v0 - v1, V3::new([2.0, 2.0, -1.0]));
         assert_eq!(v0 * 2.0, V3::new([6.0, 8.0, 0.0]));
+        assert_eq!(v1 / 2.0, V3::new([0.5, 1.0, 0.5]));
         assert_eq!(2.0 * v0, V3::new([6.0, 8.0, 0.0]));
+        assert_eq!(2.0 / v1, V3::new([2.0, 1.0, 2.0]));
         assert_eq!(v0 * v1, 11.0);
         assert_eq!(-v0, V3::new([-3.0, -4.0, 0.0]));
         assert_eq!(v0.length2(), 25.0);
@@ -301,5 +350,7 @@ mod tests {
         assert_eq!(v0.dot(&v1), 11.0);
         assert_eq!(v0.cross(&v1), V3::new([4.0, -3.0, 2.0]));
         assert_eq!(v0.lerp(&v1, 0.5), V3::new([2.0, 3.0, 0.5]));
+        assert!(!v0.is_positive());
+        assert!(v1.is_positive());
     }
 }

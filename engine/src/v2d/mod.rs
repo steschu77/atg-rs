@@ -9,3 +9,15 @@ pub mod r2;
 pub mod v2;
 pub mod v3;
 pub mod v4;
+
+// ----------------------------------------------------------------------------
+pub trait Positive {
+    fn is_positive(&self) -> bool;
+}
+
+// ----------------------------------------------------------------------------
+impl Positive for f32 {
+    fn is_positive(&self) -> bool {
+        *self > 0.0 && self.is_finite()
+    }
+}
