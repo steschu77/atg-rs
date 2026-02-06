@@ -250,6 +250,27 @@ impl Default for Rotation {
 }
 
 // ----------------------------------------------------------------------------
+impl From<V3> for Rotation {
+    fn from(euler: V3) -> Self {
+        Rotation::Euler(euler)
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl From<Q> for Rotation {
+    fn from(quat: Q) -> Self {
+        Rotation::Quat(quat)
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl From<M4x4> for Rotation {
+    fn from(mat: M4x4) -> Self {
+        Rotation::Matrix(mat)
+    }
+}
+
+// ----------------------------------------------------------------------------
 #[derive(Debug, Default, Copy, Clone)]
 pub struct Transform {
     pub position: V4,
