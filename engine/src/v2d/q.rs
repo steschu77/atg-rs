@@ -286,7 +286,15 @@ impl Q {
     // Rotate a vector
     pub fn rotate(&self, v: &V3) -> V3 {
         let qv = Q::new([v.x0(), v.x1(), v.x2(), 0.0]);
-        let r = self.inverse() * qv * *self;
+        let r = self.conjugate() * qv * *self;
+        V3::new([r.x0(), r.x1(), r.x2()])
+    }
+
+    // ------------------------------------------------------------------------
+    // Rotates a vector by the inverse of this quaternion.
+    pub fn inv_rotate(&self, v: &V3) -> V3 {
+        let qv = Q::new([v.x0(), v.x1(), v.x2(), 0.0]);
+        let r = *self * qv * self.conjugate();
         V3::new([r.x0(), r.x1(), r.x2()])
     }
 
@@ -376,6 +384,16 @@ mod test {
         let q = Q::from_axis_angle(&axis, PI);
         let r = q.rotate(&v);
         assert_eq!(r, V3::new([-1.0, 1.0, -1.0]));
+    }
+
+    #[test]
+    fn test_rotate_vector_axis_angle_inv() {
+        let axis = V3::new([0.0, 1.0, 0.0]);
+        let v = V3::new([1.0, 1.0, 1.0]);
+        let q = Q::from_axis_angle(&axis, PI);
+        let u = q.inv_rotate(&v);
+        let r = q.rotate(&u);
+        assert_eq!(r, v);
     }
 
     /// Rotation on axis parallel to vector direction should have no effect
