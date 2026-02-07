@@ -18,8 +18,9 @@ pub struct Terrain {
 // ----------------------------------------------------------------------------
 impl Terrain {
     pub fn new(width: u32, height: u32) -> Self {
-        let heightmap: Vec<f32> = vec![0.0; (width * height) as usize];
+        let mut heightmap: Vec<f32> = vec![0.0; (width * height) as usize];
         //generate_hills(&mut heightmap, width as usize, height as usize);
+        generate_flat(&mut heightmap, width as usize, height as usize);
 
         Terrain {
             width,
@@ -208,6 +209,9 @@ impl Default for Terrain {
         Self::new(32, 32)
     }
 }
+
+// ----------------------------------------------------------------------------
+fn generate_flat(_heightmap: &mut [f32], _width: usize, _height: usize) {}
 
 // ----------------------------------------------------------------------------
 fn generate_hills(heightmap: &mut [f32], width: usize, height: usize) {

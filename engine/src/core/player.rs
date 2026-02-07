@@ -393,6 +393,17 @@ impl Player {
         V4::new([pos.x0(), pos.x1(), pos.x2(), 1.0])
     }
 
+    pub fn transform(&self) -> (V4, V4) {
+        let forward = V4::new([
+            self.rotation.x_axis().x0(),
+            0.0,
+            self.rotation.x_axis().x1(),
+            0.0,
+        ]);
+
+        (forward, self.position())
+    }
+
     pub fn update_debug_arrows(&mut self, context: &mut RenderContext) -> Result<()> {
         use crate::core::gl_pipeline_colored::arrow;
 

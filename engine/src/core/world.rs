@@ -45,7 +45,7 @@ impl World {
             color: V3::new([0.0, 1.0, 0.0]), // Green arrows
         });
 
-        let terrain = Terrain::new(256, 256);
+        let terrain = Terrain::default();
         //let terrain = Terrain::from_png(Path::new("assets/terrain/heightmap.png"))?;
         let camera = Camera::new(V4::new([0.0, 4.0, 4.0, 1.0]), V4::new([0.0, 0.0, 0.0, 1.0]));
         let t = std::time::Duration::ZERO;
@@ -152,20 +152,13 @@ impl World {
 
         self.player.update_debug_arrows(&mut self.render_context)?;
 
-        let player_pos = self.player.position();
-        let mesh = create_text_mesh(&self._font, &format!("{player_pos}"))?;
+        //let (forward, position) = self.player.transform();
+        let (forward, position) = self.car.transform();
+
+        let mesh = create_text_mesh(&self._font, &format!("{position}"))?;
         self.render_context
             .update_msdftex_mesh(self.debug.mesh_id, &mesh)?;
         self.debug.transform.position = self.player.position();
-
-        let _player_forward = V4::new([
-            self.player.rotation.x_axis().x0(),
-            0.0,
-            self.player.rotation.x_axis().x1(),
-            0.0,
-        ]);
-
-        let (forward, position) = self.car.transform();
 
         self.camera.look_at(position, forward);
         Ok(())
