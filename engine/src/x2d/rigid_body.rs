@@ -1,134 +1,290 @@
-use crate::v2d;
-use crate::v2d::v2::V2;
-use crate::x2d::{Mass, Material};
+use crate::v2d::{m3x3::M3x3, q::Q, v3::V3};
+use crate::x2d::{Material, mass::Mass};
 
 // ----------------------------------------------------------------------------
-pub type RigidBodyId = u32;
+// This file implements a simple sphere rigid body. The physics is based on the
+// "semi-implicit Euler" method, which is a simple and stable integration scheme
+// for rigid body dynamics.
+//
+// Online resources:
+// https://gafferongames.com/post/physics_in_3d/
+// https://www.cs.cmu.edu/~baraff/sigcourse/notesd1.pdf
 
 // ----------------------------------------------------------------------------
+pub fn from_angular_velocity(omega_dt: V3) -> Q {
+    let angle = omega_dt.length();
+    if angle < 1.0e-6 {
+        // Very small rotation → identity
+        Q::identity()
+    } else {
+        let axis = omega_dt * (1.0 / angle);
+        Q::from_axis_angle(axis, angle)
+    }
+}
+
+// ----------------------------------------------------------------------------
+#[derive(Debug, Clone)]
 pub struct RigidBody {
-    id: RigidBodyId,
-
     mass: Mass,
     material: Material,
 
-    position: V2,
-    velocity: V2,
-    force: V2,
+    pos: V3,
+    rot: Q,
 
-    angle: f32,
-    angular_velocity: f32,
-    torque: f32,
+    linear_vel: V3,
+    angular_vel: V3,
+
+    force: V3,
+    torque: V3,
 }
 
+// ----------------------------------------------------------------------------
 impl RigidBody {
     // ------------------------------------------------------------------------
-    pub fn new(
-        id: RigidBodyId,
-        mass: Mass,
-        material: Material,
-        position: V2,
-        velocity: V2,
-        force: V2,
-        angle: f32,
-        angular_velocity: f32,
-        torque: f32,
-    ) -> Self {
+    pub fn new(mass: Mass, material: Material, pos: V3, rot: Q) -> Self {
         Self {
-            id,
             mass,
             material,
-            position,
-            velocity,
-            force,
-            angle,
-            angular_velocity,
-            torque,
+            pos,
+            rot,
+            linear_vel: V3::zero(),
+            angular_vel: V3::zero(),
+            force: V3::zero(),
+            torque: V3::zero(),
         }
     }
 
     // ------------------------------------------------------------------------
-    pub fn id(&self) -> RigidBodyId {
-        self.id
-    }
-
-    // ------------------------------------------------------------------------
     pub fn mass(&self) -> f32 {
-        self.mass.mass
+        self.mass.mass()
     }
 
     // ------------------------------------------------------------------------
     pub fn inv_mass(&self) -> f32 {
-        self.mass.inv_mass
+        self.mass.inv_mass()
     }
 
     // ------------------------------------------------------------------------
-    pub fn inertia(&self) -> f32 {
-        self.mass.inertia
+    pub fn inertia(&self) -> V3 {
+        self.mass.inertia()
     }
 
     // ------------------------------------------------------------------------
-    pub fn inv_inertia(&self) -> f32 {
-        self.mass.inv_inertia
+    pub fn inv_inertia(&self) -> V3 {
+        self.mass.inv_inertia()
     }
 
     // ------------------------------------------------------------------------
-    pub fn pos(&self) -> V2 {
-        self.position
+    pub fn position(&self) -> V3 {
+        self.pos
     }
 
     // ------------------------------------------------------------------------
-    pub fn vel(&self) -> V2 {
-        self.velocity
+    pub fn velocity(&self) -> V3 {
+        self.linear_vel
     }
 
     // ------------------------------------------------------------------------
-    pub fn to_local(&self, world: &V2) -> V2 {
-        let r = v2d::r2::R2::new(-self.angle);
-        (*world - self.position) * r
+    pub fn to_local(&self, world: V3) -> V3 {
+        let r = world - self.pos;
+        self.rot.inv_rotate(r)
     }
 
     // ------------------------------------------------------------------------
-    pub fn to_world(&self, local: &V2) -> V2 {
-        let r = v2d::r2::R2::new(self.angle);
-        (*local * r) + self.position
+    pub fn to_world(&self, local: V3) -> V3 {
+        self.rot.rotate(local) + self.pos
     }
 
     // ------------------------------------------------------------------------
-    pub fn velocity_at(&self, world: &V2) -> V2 {
-        let r = *world - self.position;
-        self.velocity + v2d::v2::V2::s_cross(self.angular_velocity, &r)
+    pub fn velocity_at(&self, world_pt: V3) -> V3 {
+        let r = world_pt - self.pos;
+        self.linear_vel + self.angular_vel.cross(r)
     }
 
     // ------------------------------------------------------------------------
-    pub fn apply_force(&mut self, force: &V2) {
-        self.force += *force;
+    pub fn apply_force(&mut self, force: V3) {
+        self.force += force;
     }
 
     // ------------------------------------------------------------------------
-    pub fn apply_impulse(&mut self, impulse: &V2) {
-        self.velocity += self.mass.inv_mass * *impulse;
+    pub fn apply_force_at(&mut self, force: V3, world_pt: V3) {
+        self.force += force;
+
+        let r = world_pt - self.pos;
+        self.torque += r.cross(force);
     }
 
     // ------------------------------------------------------------------------
-    pub fn apply_impulse_at(&mut self, impulse: &V2, world: &V2) {
-        let r = *world - self.position;
-        self.velocity += self.mass.inv_mass * *impulse;
-        self.angular_velocity += self.mass.inv_inertia * v2d::v2::V2::cross(&r, impulse);
+    pub fn integrate(&mut self, dt: f32) {
+        // Apply and clear accumulators
+        let lin_accel = self.force * self.inv_mass();
+
+        // This ignores gyroscopic terms (ω × Iω) for stability and simplicity.
+        let rot_mat = self.rot.as_mat3x3();
+        let inv_inertia_world = rot_mat * M3x3::diag(self.inv_inertia()) * rot_mat.transpose();
+        let ang_accel = inv_inertia_world * self.torque;
+
+        self.force = V3::zero();
+        self.torque = V3::zero();
+
+        self.linear_vel += lin_accel * dt;
+        self.angular_vel += ang_accel * dt;
+
+        self.pos += self.linear_vel * dt;
+
+        let dq = from_angular_velocity(self.angular_vel * dt);
+        self.rot = (self.rot * dq).norm();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::assert_float_eq;
+
+    use super::*;
+
+    #[test]
+    fn rigid_body_no_force_no_move() {
+        let mut body = RigidBody::new(
+            Mass::new(1.0, V3::one()).unwrap(),
+            Material::default(),
+            V3::zero(),
+            Q::identity(),
+        );
+
+        body.integrate(1.0);
+
+        assert_eq!(body.position(), V3::zero());
+        assert_eq!(body.velocity(), V3::zero());
+        assert_eq!(body.angular_vel, V3::zero());
     }
 
-    // ------------------------------------------------------------------------
-    pub fn integrate_forces(&mut self, dt: f32) {
-        self.velocity += self.mass.inv_mass * self.force * dt;
-        self.angular_velocity += self.mass.inv_inertia * self.torque * dt;
+    #[test]
+    fn rigid_body_constant_force_accelerates_linearly() {
+        let mut body = RigidBody::new(
+            Mass::new(2.0, V3::one()).unwrap(),
+            Material::default(),
+            V3::zero(),
+            Q::identity(),
+        );
 
-        self.force = V2::zero();
-        self.torque = 0.0;
+        let force = V3::new([4.0, 0.0, 0.0]); // a = 2
+        body.apply_force_at(force, V3::zero());
+
+        body.integrate(1.0);
+        assert_eq!(body.velocity(), V3::new([2.0, 0.0, 0.0]));
+        assert_eq!(body.position(), V3::new([2.0, 0.0, 0.0]));
+        assert_eq!(body.angular_vel, V3::zero());
+
+        // accumulators should be cleared, so no more acceleration
+        body.integrate(1.0);
+        assert_eq!(body.velocity(), V3::new([2.0, 0.0, 0.0]));
+        assert_eq!(body.position(), V3::new([4.0, 0.0, 0.0]));
+        assert_eq!(body.angular_vel, V3::zero());
     }
 
-    // ------------------------------------------------------------------------
-    pub fn integrate_velocity(&mut self, dt: f32) {
-        self.position += self.velocity * dt;
-        self.angle += self.angular_velocity * dt;
+    #[test]
+    fn test_rigid_body() {
+        let mut body = RigidBody::new(
+            Mass::new(1.0, V3::one()).unwrap(),
+            Material::default(),
+            V3::zero(),
+            Q::identity(),
+        );
+
+        // Move and rotate upwards around Z axis
+        body.apply_force_at(V3::new([0.0, 1.0, 0.0]), V3::new([1.0, 0.0, 0.0]));
+
+        body.integrate(1.0);
+        assert!(body.position().x1() > 0.0);
+        assert!(body.angular_vel.x2() > 0.0);
+    }
+
+    #[test]
+    fn to_local_to_world_identity() {
+        let body = RigidBody::new(
+            Mass::new(1.0, V3::one()).unwrap(),
+            Material::default(),
+            V3::zero(),
+            Q::identity(),
+        );
+
+        let p = V3::new([1.0, 2.0, 3.0]);
+
+        assert_eq!(body.to_local(p), p);
+        assert_eq!(body.to_world(p), p);
+    }
+
+    #[test]
+    fn to_local_to_world_translation_only() {
+        let body = RigidBody::new(
+            Mass::new(1.0, V3::one()).unwrap(),
+            Material::default(),
+            V3::new([10.0, 0.0, 0.0]),
+            Q::identity(),
+        );
+
+        let world = V3::new([11.0, 2.0, -3.0]);
+        let local = V3::new([1.0, 2.0, -3.0]);
+
+        assert_eq!(body.to_local(world), local);
+        assert_eq!(body.to_world(local), world);
+    }
+
+    #[test]
+    fn to_local_to_world_rotation_only() {
+        let rot = Q::from_axis_angle(V3::X2, std::f32::consts::FRAC_PI_2);
+
+        let body = RigidBody::new(
+            Mass::new(1.0, V3::one()).unwrap(),
+            Material::default(),
+            V3::zero(),
+            rot,
+        );
+
+        let local = V3::new([1.0, 0.0, 0.0]);
+        let world = V3::new([0.0, 1.0, 0.0]);
+
+        assert_eq!(body.to_world(local), world);
+        assert_eq!(body.to_local(world), local);
+    }
+
+    #[test]
+    fn to_local_to_world_round_trip() {
+        let rot = Q::from_axis_angle(V3::X2, 0.7);
+
+        let body = RigidBody::new(
+            Mass::new(1.0, V3::one()).unwrap(),
+            Material::default(),
+            V3::new([3.0, -2.0, 5.0]),
+            rot,
+        );
+
+        let world = V3::new([-4.0, 1.5, 2.0]);
+        let local = body.to_local(world);
+        let world2 = body.to_world(local);
+
+        assert_eq!(world, world2);
+    }
+
+    #[test]
+    fn angular_velocity_world_space_rotation_direction() {
+        let mut body = RigidBody::new(
+            Mass::new(1.0, V3::one()).unwrap(),
+            Material::default(),
+            V3::zero(),
+            Q::identity(),
+        );
+
+        // Angular velocity: +90°/s around Z
+        body.angular_vel = V3::new([0.0, 0.0, std::f32::consts::FRAC_PI_2]);
+
+        body.integrate(1.0);
+
+        // Rotate local X axis into world space
+        let x_world = body.to_world(V3::X0);
+
+        assert_float_eq!(x_world.x0(), 0.0);
+        assert_float_eq!(x_world.x1(), 1.0);
     }
 }
