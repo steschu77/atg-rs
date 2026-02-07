@@ -51,19 +51,19 @@ pub struct Pose {
 impl Pose {
     pub fn lerp(&self, target: &Pose, t: f32) -> Pose {
         Pose {
-            body: self.body.lerp(&target.body, t),
-            head: self.head.lerp(&target.head, t),
+            body: self.body.lerp(target.body, t),
+            head: self.head.lerp(target.head, t),
             feet: [
-                self.feet[0].lerp(&target.feet[0], t),
-                self.feet[1].lerp(&target.feet[1], t),
+                self.feet[0].lerp(target.feet[0], t),
+                self.feet[1].lerp(target.feet[1], t),
             ],
             toes: [
-                self.toes[0].slerp(&target.toes[0], t),
-                self.toes[1].slerp(&target.toes[1], t),
+                self.toes[0].slerp(target.toes[0], t),
+                self.toes[1].slerp(target.toes[1], t),
             ],
             toe_dirs: [
-                self.toe_dirs[0].lerp(&target.toe_dirs[0], t),
-                self.toe_dirs[1].lerp(&target.toe_dirs[1], t),
+                self.toe_dirs[0].lerp(target.toe_dirs[0], t),
+                self.toe_dirs[1].lerp(target.toe_dirs[1], t),
             ],
         }
     }
@@ -341,9 +341,9 @@ impl Player {
         let walk_dir = self.rotation.y_axis();
         let walk_dir = V3::new([walk_dir.x0(), 0.0, walk_dir.x1()]).norm();
 
-        let right = V3::cross(&normal, &walk_dir).norm();
-        let toe_dir = V3::cross(&right, &normal).norm();
-        let toe = Q::from_axes(&right, &normal, &toe_dir);
+        let right = normal.cross(walk_dir).norm();
+        let toe_dir = right.cross(normal).norm();
+        let toe = Q::from_axes(right, normal, toe_dir);
 
         let mut toe_dirs = self.current_pose.toe_dirs;
         toe_dirs[swing_foot] = right.norm();

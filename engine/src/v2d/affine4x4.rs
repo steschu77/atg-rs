@@ -109,8 +109,8 @@ pub fn rotate(v: &V4, rad: f32) -> M4x4 {
 #[rustfmt::skip]
 pub fn look_at(eye: V4, at: V4, up: V4) -> M4x4 {
     let zaxis = (at - eye).norm();              // Camera Forward vector
-    let xaxis = V4::cross(&zaxis, &up).norm();  // Camera Side vector
-    let yaxis = V4::cross(&xaxis, &zaxis);      // Camera Up vector
+    let xaxis = V4::cross(zaxis, up).norm();  // Camera Side vector
+    let yaxis = V4::cross(xaxis, zaxis);      // Camera Up vector
 
     M4x4::new([
         xaxis.x0(), yaxis.x0(), -zaxis.x0(), 0.0,

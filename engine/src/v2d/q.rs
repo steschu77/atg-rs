@@ -167,13 +167,13 @@ impl Q {
     }
 
     // ------------------------------------------------------------------------
-    pub const fn dot(a: &Self, b: &Self) -> f32 {
-        a.x0() * b.x0() + a.x1() * b.x1() + a.x2() * b.x2() + a.x3() * b.x3()
+    pub const fn dot(&self, b: Self) -> f32 {
+        self.x0() * b.x0() + self.x1() * b.x1() + self.x2() * b.x2() + self.x3() * b.x3()
     }
 
     // ------------------------------------------------------------------------
     pub const fn length2(&self) -> f32 {
-        Self::dot(self, self)
+        self.dot(*self)
     }
 
     // ------------------------------------------------------------------------
@@ -209,17 +209,17 @@ impl Q {
 
     // ----------------------------------------------------------------------------
     // NLERP: normalized linear interpolation
-    pub fn nlerp(&self, q1: &Self, t: f32) -> Self {
-        let dot = Q::dot(self, q1);
-        let q1 = if dot < 0.0 { -*q1 } else { *q1 };
+    pub fn nlerp(&self, q1: Self, t: f32) -> Self {
+        let dot = self.dot(q1);
+        let q1 = if dot < 0.0 { -q1 } else { q1 };
         (*self * (1.0 - t) + q1 * t).norm()
     }
 
     // ----------------------------------------------------------------------------
     // SLERP: spherical linear interpolation
-    pub fn slerp(&self, b: &Self, t: f32) -> Self {
-        let mut b = *b;
-        let mut c = Q::dot(self, &b);
+    pub fn slerp(&self, b: Self, t: f32) -> Self {
+        let mut b = b;
+        let mut c = self.dot(b);
 
         // Take shortest path
         if c < 0.0 {
@@ -229,7 +229,7 @@ impl Q {
 
         // If nearly parallel, fall back to nlerp
         if c > 0.9995 {
-            return self.nlerp(&b, t);
+            return self.nlerp(b, t);
         }
 
         let th = c.acos();
@@ -284,7 +284,7 @@ impl Q {
 
     // ------------------------------------------------------------------------
     // Rotate a vector
-    pub fn rotate(&self, v: &V3) -> V3 {
+    pub fn rotate(&self, v: V3) -> V3 {
         let qv = Q::new([v.x0(), v.x1(), v.x2(), 0.0]);
         let r = self.conjugate() * qv * *self;
         V3::new([r.x0(), r.x1(), r.x2()])
@@ -292,14 +292,14 @@ impl Q {
 
     // ------------------------------------------------------------------------
     // Rotates a vector by the inverse of this quaternion.
-    pub fn inv_rotate(&self, v: &V3) -> V3 {
+    pub fn inv_rotate(&self, v: V3) -> V3 {
         let qv = Q::new([v.x0(), v.x1(), v.x2(), 0.0]);
         let r = *self * qv * self.conjugate();
         V3::new([r.x0(), r.x1(), r.x2()])
     }
 
     // ------------------------------------------------------------------------
-    pub fn from_axis_angle(axis: &V3, angle: f32) -> Self {
+    pub fn from_axis_angle(axis: V3, angle: f32) -> Self {
         let half = angle * 0.5;
         let (s, c) = half.sin_cos();
         Q::new([axis.x0() * s, axis.x1() * s, axis.x2() * s, c])
@@ -351,14 +351,14 @@ impl Q {
     }
 
     // ------------------------------------------------------------------------
-    pub fn from_axes(x_axis: &V3, y_axis: &V3, z_axis: &V3) -> Self {
-        let m = M3x3::from_cols(*x_axis, *y_axis, *z_axis);
+    pub fn from_axes(x_axis: V3, y_axis: V3, z_axis: V3) -> Self {
+        let m = M3x3::from_cols(x_axis, y_axis, z_axis);
         debug_assert!(m.det() > 0.0, "Basis must be right-handed");
 
         let q = Q::from_mat3(&m);
-        debug_assert_eq!(q.rotate(&V3::X0), *x_axis);
-        debug_assert_eq!(q.rotate(&V3::X1), *y_axis);
-        debug_assert_eq!(q.rotate(&V3::X2), *z_axis);
+        debug_assert_eq!(q.rotate(V3::X0), x_axis);
+        debug_assert_eq!(q.rotate(V3::X1), y_axis);
+        debug_assert_eq!(q.rotate(V3::X2), z_axis);
 
         q
     }
@@ -373,7 +373,7 @@ mod test {
     #[test]
     fn test_axis_angle() {
         let axis = V3::new([1.0, 1.0, 1.0]).norm();
-        let q = Q::from_axis_angle(&axis, PI);
+        let q = Q::from_axis_angle(axis, PI);
         assert_float_eq!(q.length(), 1.0);
     }
 
@@ -381,8 +381,8 @@ mod test {
     fn test_rotate_vector_axis_angle() {
         let axis = V3::new([0.0, 1.0, 0.0]);
         let v = V3::new([1.0, 1.0, 1.0]);
-        let q = Q::from_axis_angle(&axis, PI);
-        let r = q.rotate(&v);
+        let q = Q::from_axis_angle(axis, PI);
+        let r = q.rotate(v);
         assert_eq!(r, V3::new([-1.0, 1.0, -1.0]));
     }
 
@@ -390,9 +390,9 @@ mod test {
     fn test_rotate_vector_axis_angle_inv() {
         let axis = V3::new([0.0, 1.0, 0.0]);
         let v = V3::new([1.0, 1.0, 1.0]);
-        let q = Q::from_axis_angle(&axis, PI);
-        let u = q.inv_rotate(&v);
-        let r = q.rotate(&u);
+        let q = Q::from_axis_angle(axis, PI);
+        let u = q.inv_rotate(v);
+        let r = q.rotate(u);
         assert_eq!(r, v);
     }
 
@@ -401,8 +401,8 @@ mod test {
     fn test_rotate_vector_axis_angle_same_axis() {
         let v = V3::new([1.0, 1.0, 1.0]);
         let axis = V3::new([1.0, 1.0, 1.0]).norm();
-        let q = Q::from_axis_angle(&axis, 31.41);
-        let r = q.rotate(&v);
+        let q = Q::from_axis_angle(axis, 31.41);
+        let r = q.rotate(v);
         assert_eq!(r, v);
     }
 
@@ -475,8 +475,8 @@ mod test {
         let r = Q::from_mat3(&q.as_mat3x3());
 
         let v = V3::new([1.0, 2.0, 3.0]);
-        let v_rot_q = q.rotate(&v);
-        let v_rot_r = r.rotate(&v);
+        let v_rot_q = q.rotate(v);
+        let v_rot_r = r.rotate(v);
         assert_eq!(v_rot_q, v_rot_r);
     }
 
@@ -486,7 +486,7 @@ mod test {
         let m = q.as_mat3x3();
 
         let v = V3::new([1.0, 2.0, 3.0]);
-        let v_rot_q = q.rotate(&v);
+        let v_rot_q = q.rotate(v);
         let v_rot_m = m * v;
         assert_eq!(v_rot_q, v_rot_m);
     }
@@ -496,15 +496,15 @@ mod test {
         let x_axis = V3::new([0.6, 0.8, 0.0]);
         let y_axis = V3::new([-0.8, 0.6, 0.0]);
         let z_axis = V3::new([0.0, 0.0, 1.0]);
-        let q = Q::from_axes(&x_axis, &y_axis, &z_axis);
+        let q = Q::from_axes(x_axis, y_axis, z_axis);
 
-        let v_rot_q = q.rotate(&[1.0, 0.0, 0.0].into());
+        let v_rot_q = q.rotate([1.0, 0.0, 0.0].into());
         assert_eq!(v_rot_q, x_axis);
 
-        let v_rot_q = q.rotate(&[0.0, 1.0, 0.0].into());
+        let v_rot_q = q.rotate([0.0, 1.0, 0.0].into());
         assert_eq!(v_rot_q, y_axis);
 
-        let v_rot_q = q.rotate(&[0.0, 0.0, 1.0].into());
+        let v_rot_q = q.rotate([0.0, 0.0, 1.0].into());
         assert_eq!(v_rot_q, z_axis);
     }
 
@@ -513,15 +513,15 @@ mod test {
         let x_axis = V3::new([-0.6544649, -0.3786178, -0.6544649]);
         let y_axis = V3::new([-0.17025319, 0.9171547, -0.3603346]);
         let z_axis = -V3::new([-0.73667467, 0.12440162, 0.66470647]);
-        let q = Q::from_axes(&x_axis, &y_axis, &z_axis);
+        let q = Q::from_axes(x_axis, y_axis, z_axis);
 
-        let v_rot_q = q.rotate(&[1.0, 0.0, 0.0].into());
+        let v_rot_q = q.rotate([1.0, 0.0, 0.0].into());
         assert_eq!(v_rot_q, x_axis);
 
-        let v_rot_q = q.rotate(&[0.0, 1.0, 0.0].into());
+        let v_rot_q = q.rotate([0.0, 1.0, 0.0].into());
         assert_eq!(v_rot_q, y_axis);
 
-        let v_rot_q = q.rotate(&[0.0, 0.0, 1.0].into());
+        let v_rot_q = q.rotate([0.0, 0.0, 1.0].into());
         assert_eq!(v_rot_q, z_axis);
     }
 }
