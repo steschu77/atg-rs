@@ -262,9 +262,9 @@ impl Q {
         let wz = self.x3() * z2;
 
         M3x3::new([
-            1.0 - (yy + zz), xy - wz, xz + wy,
-            xy + wz, 1.0 - (xx + zz), yz - wx,
-            xz - wy, yz + wx, 1.0 - (xx + yy),
+            1.0 - (yy + zz), xy + wz, xz - wy,
+            xy - wz, 1.0 - (xx + zz), yz + wx,
+            xz + wy, yz - wx, 1.0 - (xx + yy),
         ])
     }
 
@@ -286,7 +286,7 @@ impl Q {
     // Rotate a vector
     pub fn rotate(&self, v: V3) -> V3 {
         let qv = Q::new([v.x0(), v.x1(), v.x2(), 0.0]);
-        let r = self.conjugate() * qv * *self;
+        let r = *self * qv * self.conjugate();
         V3::new([r.x0(), r.x1(), r.x2()])
     }
 
@@ -294,7 +294,7 @@ impl Q {
     // Rotates a vector by the inverse of this quaternion.
     pub fn inv_rotate(&self, v: V3) -> V3 {
         let qv = Q::new([v.x0(), v.x1(), v.x2(), 0.0]);
-        let r = *self * qv * self.conjugate();
+        let r = self.conjugate() * qv * *self;
         V3::new([r.x0(), r.x1(), r.x2()])
     }
 
@@ -307,6 +307,7 @@ impl Q {
 
     // ------------------------------------------------------------------------
     pub fn from_mat3(m: &M3x3) -> Self {
+        let m = m.transpose();
         let trace = m.x00() + m.x11() + m.x22();
 
         let q = if trace > 0.0 {
@@ -419,12 +420,14 @@ mod test {
     fn mat3_to_quat_rot_x_90() {
         let s = 0.5_f32.sqrt();
         let m = M3x3::new([
-            1.0, 0.0,  0.0,
-            0.0, 0.0, -1.0,
-            0.0, 1.0,  0.0
+            1.0,  0.0, 0.0,
+            0.0,  0.0, 1.0,
+            0.0, -1.0, 0.0
         ]);
         let q = Q::from_mat3(&m);
         let expected = Q::new([s, 0.0, 0.0, s]);
+        let dot = q.dot(expected);
+        assert_float_eq!(dot.abs(), 1.0);
         assert_eq!(q, expected);
     }
 
@@ -433,12 +436,14 @@ mod test {
     fn mat3_to_quat_rot_y_90() {
         let s = 0.5_f32.sqrt();
         let m = M3x3::new([
-             0.0, 0.0, 1.0,
-             0.0, 1.0, 0.0,
-            -1.0, 0.0, 0.0
+            0.0, 0.0, -1.0,
+            0.0, 1.0,  0.0,
+            1.0, 0.0,  0.0
         ]);
         let q = Q::from_mat3(&m);
         let expected = Q::new([0.0, s, 0.0, s]);
+        let dot = q.dot(expected);
+        assert_float_eq!(dot.abs(), 1.0);
         assert_eq!(q, expected);
     }
 
@@ -447,12 +452,14 @@ mod test {
     fn mat3_to_quat_rot_z_90() {
         let s = 0.5_f32.sqrt();
         let m = M3x3::new([
-            0.0, -1.0, 0.0,
-            1.0,  0.0, 0.0,
-            0.0,  0.0, 1.0
+             0.0, 1.0, 0.0,
+            -1.0, 0.0, 0.0,
+             0.0, 0.0, 1.0
         ]);
         let q = Q::from_mat3(&m);
         let expected = Q::new([0.0, 0.0, s, s]);
+        let dot = q.dot(expected);
+        assert_float_eq!(dot.abs(), 1.0);
         assert_eq!(q, expected);
     }
 
