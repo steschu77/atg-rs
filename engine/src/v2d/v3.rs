@@ -274,18 +274,18 @@ impl V3 {
     }
 
     // ------------------------------------------------------------------------
-    pub fn length(&self) -> f32 {
+    pub fn length(self) -> f32 {
         self.length2().sqrt()
     }
 
     // ------------------------------------------------------------------------
-    pub fn distance(x0: &Self, x1: &Self) -> f32 {
-        let d = *x1 - *x0;
+    pub fn distance(self, x1: Self) -> f32 {
+        let d = x1 - self;
         d.length()
     }
 
     // ------------------------------------------------------------------------
-    pub fn norm(&self) -> Self {
+    pub fn norm(self) -> Self {
         let l2 = self.length2();
         if l2 < f32::EPSILON {
             V3::default()
@@ -299,17 +299,17 @@ impl V3 {
     }
 
     // ------------------------------------------------------------------------
-    pub fn abs(&self) -> Self {
+    pub fn abs(self) -> Self {
         V3::new([self.x0().abs(), self.x1().abs(), self.x2().abs()])
     }
 
     // ------------------------------------------------------------------------
-    pub const fn dot(&self, v1: &Self) -> f32 {
+    pub const fn dot(self, v1: Self) -> f32 {
         self.x0() * v1.x0() + self.x1() * v1.x1() + self.x2() * v1.x2()
     }
 
     // ------------------------------------------------------------------------
-    pub const fn cross(&self, v1: &Self) -> Self {
+    pub const fn cross(self, v1: Self) -> Self {
         let x0 = self.x1() * v1.x2() - self.x2() * v1.x1();
         let x1 = self.x2() * v1.x0() - self.x0() * v1.x2();
         let x2 = self.x0() * v1.x1() - self.x1() * v1.x0();
@@ -317,8 +317,8 @@ impl V3 {
     }
 
     // ------------------------------------------------------------------------
-    pub fn lerp(&self, other: &V3, t: f32) -> V3 {
-        *self + (*other - *self) * t
+    pub fn lerp(self, other: Self, t: f32) -> V3 {
+        self + (other - self) * t
     }
 }
 
@@ -346,10 +346,10 @@ mod tests {
         assert_eq!(v0.length(), 5.0);
         assert_eq!(v0.norm(), V3::new([0.6, 0.8, 0.0]));
         assert_eq!(v0.abs(), V3::new([3.0, 4.0, 0.0]));
-        assert_eq!(V3::distance(&v0, &v1), 3.0);
-        assert_eq!(v0.dot(&v1), 11.0);
-        assert_eq!(v0.cross(&v1), V3::new([4.0, -3.0, 2.0]));
-        assert_eq!(v0.lerp(&v1, 0.5), V3::new([2.0, 3.0, 0.5]));
+        assert_eq!(V3::distance(v0, v1), 3.0);
+        assert_eq!(v0.dot(v1), 11.0);
+        assert_eq!(v0.cross(v1), V3::new([4.0, -3.0, 2.0]));
+        assert_eq!(v0.lerp(v1, 0.5), V3::new([2.0, 3.0, 0.5]));
         assert!(!v0.is_positive());
         assert!(v1.is_positive());
     }

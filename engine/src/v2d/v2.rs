@@ -194,6 +194,11 @@ impl V2 {
     }
 
     // ------------------------------------------------------------------------
+    pub const fn one() -> Self {
+        V2::new([1.0, 1.0])
+    }
+
+    // ------------------------------------------------------------------------
     pub const fn from_slice(m: &[f32; 2]) -> Self {
         V2 { m: *m }
     }
@@ -213,6 +218,8 @@ impl V2 {
     // ------------------------------------------------------------------------
     pub const X0: V2 = V2::new([1.0, 0.0]);
     pub const X1: V2 = V2::new([0.0, 1.0]);
+    pub const ZERO: V2 = V2::zero();
+    pub const ONE: V2 = V2::one();
 
     // ------------------------------------------------------------------------
     pub const fn x0(&self) -> f32 {
@@ -234,28 +241,28 @@ impl V2 {
     }
 
     // ------------------------------------------------------------------------
-    pub const fn perpendicular(&self) -> Self {
+    pub const fn perpendicular(self) -> Self {
         V2::new([-self.x1(), self.x0()])
     }
 
     // ------------------------------------------------------------------------
-    pub const fn length2(&self) -> f32 {
+    pub const fn length2(self) -> f32 {
         self.x0() * self.x0() + self.x1() * self.x1()
     }
 
     // ------------------------------------------------------------------------
-    pub fn length(&self) -> f32 {
+    pub fn length(self) -> f32 {
         self.length2().sqrt()
     }
 
     // ------------------------------------------------------------------------
-    pub fn distance(x0: &Self, x1: &Self) -> f32 {
-        let d = *x1 - *x0;
+    pub fn distance(self, x1: Self) -> f32 {
+        let d = x1 - self;
         d.length()
     }
 
     // ------------------------------------------------------------------------
-    pub fn norm(&self) -> Self {
+    pub fn norm(self) -> Self {
         let l2 = self.length2();
         if l2 < f32::EPSILON {
             V2::default()
@@ -268,13 +275,13 @@ impl V2 {
     }
 
     // ------------------------------------------------------------------------
-    pub fn abs(&self) -> Self {
+    pub fn abs(self) -> Self {
         V2::new([self.x0().abs(), self.x1().abs()])
     }
 
     // ------------------------------------------------------------------------
-    pub const fn dot(v0: &Self, v1: &Self) -> f32 {
-        v0.x0() * v1.x0() + v0.x1() * v1.x1()
+    pub const fn dot(self, v1: Self) -> f32 {
+        self.x0() * v1.x0() + self.x1() * v1.x1()
     }
 
     // ----------------------------------------------------------------------------
@@ -283,16 +290,16 @@ impl V2 {
     // * magnitude of the Z vector of 3D cross product
     // * signed and determines v0 rotates CW or CCW to v1 or v0 and v1 are co-linear
     // * determinant of the 2x2 matrix built from vectors v0 and v1
-    pub const fn cross(v0: &Self, v1: &Self) -> f32 {
-        v0.x0() * v1.x1() - v0.x1() * v1.x0()
+    pub const fn cross(self, v1: Self) -> f32 {
+        self.x0() * v1.x1() - self.x1() * v1.x0()
     }
 
     // ----------------------------------------------------------------------------
     // k == 0: v0, v1, v2 triplet is co-linear
     // k >  0: v0, v1, v2 triplet is clockwise
     // k <  0: v0, v1, v2 triplet is counter clockwise
-    pub fn winding(v0: &Self, v1: &Self, v2: &Self) -> f32 {
-        Self::cross(&(*v0 - *v1), &(*v0 - *v2))
+    pub fn winding(v0: Self, v1: Self, v2: Self) -> f32 {
+        (v0 - v1).cross(v0 - v2)
     }
 }
 
@@ -318,11 +325,11 @@ mod tests {
         assert_eq!(v1.length(), 5.0);
         assert_eq!(v1.norm(), V2::new([0.6, 0.8]));
         assert_eq!(v2.abs(), V2::new([2.0, 2.0]));
-        assert_eq!(V2::distance(&v0, &v2), 5.0);
-        assert_eq!(V2::dot(&v0, &v1), 11.0);
-        assert_eq!(V2::cross(&v0, &v1), -2.0);
-        assert_eq!(V2::winding(&v0, &v1, &v0), 0.0);
-        assert_eq!(V2::winding(&v0, &v1, &v2), -2.0);
-        assert_eq!(V2::winding(&v2, &v1, &v0), 2.0);
+        assert_eq!(v0.dot(v1), 11.0);
+        assert_eq!(v0.cross(v1), -2.0);
+        assert_eq!(V2::distance(v0, v2), 5.0);
+        assert_eq!(V2::winding(v0, v1, v0), 0.0);
+        assert_eq!(V2::winding(v0, v1, v2), -2.0);
+        assert_eq!(V2::winding(v2, v1, v0), 2.0);
     }
 }

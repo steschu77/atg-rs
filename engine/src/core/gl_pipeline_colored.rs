@@ -15,7 +15,7 @@ pub struct Vertex {
 // --------------------------------------------------------------------------------
 fn add_unit_cube_quad(verts: &mut Vec<Vertex>, indices: &mut Vec<u32>, u: V3, v: V3) {
     let i = verts.len() as u32;
-    let n = V3::cross(&u, &v);
+    let n = u.cross(v);
 
     #[rustfmt::skip]
     verts.extend_from_slice(&[
@@ -49,7 +49,7 @@ pub fn create_unit_cube_mesh() -> (Vec<Vertex>, Vec<u32>) {
 // --------------------------------------------------------------------------------
 pub fn add_plane_quad(verts: &mut Vec<Vertex>, indices: &mut Vec<u32>, u: V3, v: V3) {
     let i = verts.len() as u32;
-    let n = V3::cross(&u, &v);
+    let n = u.cross(v);
     verts.extend_from_slice(&[
         Vertex { pos: -u - v, n },
         Vertex { pos: u - v, n },
@@ -174,8 +174,8 @@ pub fn arrow(origin: V3, n: V3, length: f32) -> Vec<Vertex> {
     } else {
         V3::new([1.0, 0.0, 0.0])
     };
-    let z_axis = n.cross(&x_axis).norm();
-    let x_axis = z_axis.cross(&n).norm();
+    let z_axis = n.cross(x_axis).norm();
+    let x_axis = z_axis.cross(n).norm();
 
     verts.extend(shaft.iter().map(|v| Vertex {
         pos: v0 + n * v.pos.x1() + x_axis * v.pos.x0() + z_axis * v.pos.x2(),
@@ -202,7 +202,7 @@ pub fn transform_mesh(verts: &mut [Vertex], translation: V3, transform: M3x3) {
 fn face_normal(v0: V3, v1: V3, v2: V3) -> V3 {
     let u = v1 - v0;
     let v = v2 - v0;
-    V3::cross(&u, &v).norm()
+    u.cross(v).norm()
 }
 
 // ----------------------------------------------------------------------------

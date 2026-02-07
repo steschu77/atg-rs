@@ -1,9 +1,9 @@
 use crate::v2d::{m3x3::M3x3, v3::V3};
 
 // ----------------------------------------------------------------------------
-pub fn rotate_axis(v: &V3, axis: &V3, angle: f32) -> V3 {
+pub fn rotate_axis(v: V3, axis: V3, angle: f32) -> V3 {
     let (s, c) = angle.sin_cos();
-    *v * c + axis.cross(v) * s + *axis * axis.dot(v) * (1.0 - c)
+    v * c + axis.cross(v) * s + axis * axis.dot(v) * (1.0 - c)
 }
 
 // ----------------------------------------------------------------------------
@@ -43,10 +43,10 @@ pub fn rotate_x2(rad: f32) -> M3x3 {
 
 // ----------------------------------------------------------------------------
 #[rustfmt::skip]
-pub fn rotate(v: &V3, rad: f32) -> M3x3 {
+pub fn rotate(v: V3, rad: f32) -> M3x3 {
     let (s, c) = rad.sin_cos();
 
-    let vs = s * *v;
+    let vs = s * v;
 
     let a0 = v.x0() * v.x0();
     let a1 = v.x1() * v.x1();
