@@ -3,6 +3,7 @@ use crate::core::gl_pipeline::{GlMaterial, GlMesh, GlPipeline, GlUniforms};
 use crate::error::Result;
 use crate::sys::opengl as gl;
 use crate::v2d::{m3x3::M3x3, v3::V3};
+use std::collections::HashMap;
 use std::rc::Rc;
 
 // ----------------------------------------------------------------------------
@@ -155,6 +156,117 @@ pub fn tetrahedron(side: f32, height: f32) -> Vec<Vertex> {
         Vertex { pos: v0, n: n2 },
         Vertex { pos: v3, n: n2 },
     ]
+}
+
+// ----------------------------------------------------------------------------
+pub fn icosahedron(radius: f32) -> (Vec<Vertex>, Vec<u32>) {
+    #[allow(clippy::excessive_precision)]
+    const PHI: f32 = 1.6180339887498948482; // golden ratio
+
+    #[rustfmt::skip]
+    let v = vec![
+        V3::new([-1.0,  PHI,  0.0]),
+        V3::new([ 1.0,  PHI,  0.0]),
+        V3::new([-1.0, -PHI,  0.0]),
+        V3::new([ 1.0, -PHI,  0.0]),
+
+        V3::new([ 0.0, -1.0,  PHI]),
+        V3::new([ 0.0,  1.0,  PHI]),
+        V3::new([ 0.0, -1.0, -PHI]),
+        V3::new([ 0.0,  1.0, -PHI]),
+
+        V3::new([ PHI,  0.0, -1.0]),
+        V3::new([ PHI,  0.0,  1.0]),
+        V3::new([-PHI,  0.0, -1.0]),
+        V3::new([-PHI,  0.0,  1.0]),
+    ];
+
+    let verts: Vec<_> = v
+        .into_iter()
+        .map(|p| {
+            let n = p.norm();
+            Vertex { pos: n * radius, n }
+        })
+        .collect();
+
+    let t = vec![
+        [0, 5, 11],
+        [0, 1, 5],
+        [0, 7, 1],
+        [0, 10, 7],
+        [0, 11, 10],
+        [1, 9, 5],
+        [5, 4, 11],
+        [11, 2, 10],
+        [10, 6, 7],
+        [7, 8, 1],
+        [3, 4, 9],
+        [3, 2, 4],
+        [3, 6, 2],
+        [3, 8, 6],
+        [3, 9, 8],
+        [4, 5, 9],
+        [2, 11, 4],
+        [6, 10, 2],
+        [8, 7, 6],
+        [9, 1, 8],
+    ];
+
+    let indices = t
+        .iter()
+        .flat_map(|tri| tri.iter())
+        .cloned()
+        .collect::<Vec<u32>>();
+
+    (verts, indices)
+}
+
+// ----------------------------------------------------------------------------
+pub fn icosphere(radius: f32, subdivisions: u32) -> (Vec<Vertex>, Vec<u32>) {
+    let (mut verts, mut indices) = icosahedron(radius);
+
+    for _ in 0..subdivisions {
+        // each triangle (= indices.len() / 3) has 3 edges and adds 1 new vertex
+        // per edge, but each edge is shared by 2 triangles
+        let new_vertex_count = indices.len() / 2;
+        verts.reserve(indices.len() / 2);
+
+        let mut new_indices = Vec::with_capacity(indices.len() * 4);
+        let mut cache: HashMap<(u32, u32), u32> = HashMap::with_capacity(new_vertex_count);
+
+        let key = |i0: u32, i1: u32| -> (u32, u32) { if i0 < i1 { (i0, i1) } else { (i1, i0) } };
+
+        let mut new_vertex = |i0: usize, i1: usize| -> u32 {
+            let n = (verts[i0].pos + verts[i1].pos).norm();
+            verts.push(Vertex { pos: n * radius, n });
+            verts.len() as u32 - 1
+        };
+
+        let mut mid_point = |i0: u32, i1: u32| -> u32 {
+            *cache
+                .entry(key(i0, i1))
+                .or_insert_with(|| new_vertex(i0 as usize, i1 as usize))
+        };
+
+        let (tris, _) = indices.as_chunks::<3>();
+        for [a, b, c] in tris.iter() {
+            let ab = mid_point(*a, *b);
+            let bc = mid_point(*b, *c);
+            let ca = mid_point(*c, *a);
+
+            #[rustfmt::skip]
+            new_indices.extend_from_slice(&[
+                *a, ab, ca,
+                *b, bc, ab,
+                *c, ca, bc,
+                ab, bc, ca
+            ]);
+        }
+
+        indices = new_indices;
+    }
+
+    (verts, indices)
 }
 
 // ----------------------------------------------------------------------------
