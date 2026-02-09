@@ -239,6 +239,16 @@ impl M3x3 {
     }
 
     // ------------------------------------------------------------------------
+    #[rustfmt::skip]
+    pub const fn uniform(s: f32) -> Self {
+        M3x3::new([
+            s, s, s,
+            s, s, s,
+            s, s, s,
+        ])
+    }
+
+    // ------------------------------------------------------------------------
     pub const fn scalar(s: f32) -> Self {
         M3x3::diag(V3::uniform(s))
     }
@@ -449,6 +459,20 @@ impl M3x3 {
                 ])
         }
     }
+
+    // ------------------------------------------------------------------------
+    pub fn is_orthonormal(&self) -> bool {
+        let c0 = self.col::<0>();
+        let c1 = self.col::<1>();
+        let c2 = self.col::<2>();
+
+        float_eq_rel(c0.length2(), 1.0)
+            && float_eq_rel(c1.length2(), 1.0)
+            && float_eq_rel(c2.length2(), 1.0)
+            && float_eq_rel(c0.dot(c1), 0.0)
+            && float_eq_rel(c1.dot(c2), 0.0)
+            && float_eq_rel(c2.dot(c0), 0.0)
+    }
 }
 
 #[cfg(test)]
@@ -520,5 +544,19 @@ mod tests {
                 3.0, 6.0, 9.0
             ])
         );
+    }
+
+    #[test]
+    fn test_is_orthonormal() {
+        assert!(M3x3::identity().is_orthonormal());
+
+        assert!(!M3x3::zero().is_orthonormal());
+        assert!(!M3x3::uniform(1.0).is_orthonormal());
+        assert!(!M3x3::scalar(2.0).is_orthonormal());
+
+        let m1 = M3x3::from_cols(V3::X1, V3::X2, V3::X0);
+        let m2 = M3x3::from_cols(V3::X2, V3::X0, V3::X1);
+        assert!(m1.is_orthonormal());
+        assert!(m2.is_orthonormal());
     }
 }
