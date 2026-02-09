@@ -57,8 +57,6 @@ impl Renderer {
             gl.BindFramebuffer(gl::FRAMEBUFFER, self.fbo);
             gl.Enable(gl::DEPTH_TEST);
             gl.Enable(gl::CULL_FACE);
-            //gl.CullFace(gl::BACK);
-            gl.FrontFace(gl::CW);
             gl.ClearColor(0.3, 0.2, 0.1, 1.0);
             gl.Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
@@ -98,7 +96,6 @@ impl Renderer {
         unsafe {
             gl.BindFramebuffer(gl::FRAMEBUFFER, 0);
             gl.Disable(gl::DEPTH_TEST);
-            gl.FrontFace(gl::CCW);
 
             gl.UseProgram(self.texture_program);
             gl.BindVertexArray(self.texture_vao);
