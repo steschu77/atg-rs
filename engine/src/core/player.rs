@@ -184,11 +184,11 @@ fn toe_roll(t: f32) -> f32 {
 
 // ----------------------------------------------------------------------------
 impl Player {
-    pub fn new(context: &mut RenderContext) -> Self {
+    pub fn new(context: &mut RenderContext) -> Result<Self> {
         use crate::core::gl_pipeline_colored::arrow;
         let pos = V3::new([1.0, 0.0, 0.0]);
         let forward_3d = V3::new([0.0, 0.0, 1.0]);
-        let arrow_verts = arrow(pos, forward_3d, 1.5);
+        let arrow_verts = arrow(pos, pos + 1.5 * forward_3d)?;
 
         let left_arrow_mesh_id = context
             .create_colored_mesh(&arrow_verts, &[], true)
@@ -196,7 +196,7 @@ impl Player {
         let right_arrow_mesh_id = context
             .create_colored_mesh(&arrow_verts, &[], true)
             .unwrap();
-        Self {
+        Ok(Self {
             mode: PlayerMode::InCar,
             objects: [
                 RenderObject {
@@ -287,7 +287,7 @@ impl Player {
                 step_length: 0.8,
                 step_height: 0.3,
             },
-        }
+        })
     }
 
     pub fn idle(&mut self) {
@@ -408,10 +408,11 @@ impl Player {
         use crate::core::gl_pipeline_colored::arrow;
 
         for i in 0..2 {
-            let foot_pos = self.current_pose.feet[i];
+            let from = self.current_pose.feet[i];
             let forward = self.current_pose.toe_dirs[i];
-            let arrow_verts = arrow(foot_pos, forward, 1.5);
-            context.update_colored_mesh(self.debug_arrows[i].mesh_id, &arrow_verts, &[])?;
+            if let Ok(arrow_verts) = arrow(from, from + 1.5 * forward) {
+                context.update_colored_mesh(self.debug_arrows[i].mesh_id, &arrow_verts, &[])?;
+            }
         }
 
         Ok(())

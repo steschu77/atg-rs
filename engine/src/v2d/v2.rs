@@ -81,7 +81,7 @@ impl Div<f32> for V2 {
     type Output = Self;
 
     fn div(self, s: f32) -> Self {
-        let inv_s = 1.0 / s;
+        let inv_s = s.recip();
         let x0 = self.x0() * inv_s;
         let x1 = self.x1() * inv_s;
         V2::new([x0, x1])

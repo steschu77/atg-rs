@@ -115,9 +115,9 @@ impl World {
         }
 
         use crate::core::gl_pipeline_colored::arrow;
-        let x0_arrow_verts = arrow(V3::ZERO, V3::X0, 1.0);
-        let x1_arrow_verts = arrow(V3::ZERO, V3::X1, 1.0);
-        let x2_arrow_verts = arrow(V3::ZERO, V3::X2, 1.0);
+        let x0_arrow_verts = arrow(V3::ZERO, V3::X0)?;
+        let x1_arrow_verts = arrow(V3::ZERO, V3::X1)?;
+        let x2_arrow_verts = arrow(V3::ZERO, V3::X2)?;
         let x0_debug_arrow_mesh_id =
             render_context.create_colored_mesh(&x0_arrow_verts, &[], true)?;
         let x1_debug_arrow_mesh_id =
@@ -163,7 +163,7 @@ impl World {
             },
         ];
 
-        let player = Player::new(&mut render_context);
+        let player = Player::new(&mut render_context)?;
 
         let car_geo = Geometry {
             length: 4.0,

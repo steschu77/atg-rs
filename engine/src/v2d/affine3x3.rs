@@ -1,3 +1,4 @@
+use crate::v2d::float_eq::float_eq_rel;
 use crate::v2d::{m3x3::M3x3, v3::V3};
 
 // ----------------------------------------------------------------------------
@@ -86,7 +87,7 @@ pub fn rotate(v: V3, rad: f32) -> M3x3 {
 // Non-guarantees
 // - The orientation of the remaining two axes is not fixed.
 pub fn basis_from_x0(x0: V3) -> M3x3 {
-    debug_assert!((x0.length2() - 1.0).abs() < f32::EPSILON);
+    debug_assert!(float_eq_rel(x0.length2(), 1.0), "{x0} is not a unit vector");
     let x2 = x0.cross(approx_orthogonal_axis(x0)).norm();
     let x1 = x2.cross(x0).norm();
     M3x3::from_cols(x0, x1, x2)
@@ -94,7 +95,7 @@ pub fn basis_from_x0(x0: V3) -> M3x3 {
 
 // ----------------------------------------------------------------------------
 pub fn basis_from_x1(x1: V3) -> M3x3 {
-    debug_assert!((x1.length2() - 1.0).abs() < f32::EPSILON);
+    debug_assert!(float_eq_rel(x1.length2(), 1.0), "{x1} is not a unit vector");
     let x0 = x1.cross(approx_orthogonal_axis(x1)).norm();
     let x2 = x0.cross(x1).norm();
     M3x3::from_cols(x0, x1, x2)
@@ -102,7 +103,7 @@ pub fn basis_from_x1(x1: V3) -> M3x3 {
 
 // ----------------------------------------------------------------------------
 pub fn basis_from_x2(x2: V3) -> M3x3 {
-    debug_assert!((x2.length2() - 1.0).abs() < f32::EPSILON);
+    debug_assert!(float_eq_rel(x2.length2(), 1.0), "{x2} is not a unit vector");
     let x1 = x2.cross(approx_orthogonal_axis(x2)).norm();
     let x0 = x1.cross(x2).norm();
     M3x3::from_cols(x0, x1, x2)
@@ -112,7 +113,7 @@ pub fn basis_from_x2(x2: V3) -> M3x3 {
 #[allow(clippy::collapsible_else_if)]
 #[allow(clippy::excessive_precision)]
 fn approx_orthogonal_axis(v: V3) -> V3 {
-    debug_assert!((v.length2() - 1.0).abs() < f32::EPSILON);
+    debug_assert!(float_eq_rel(v.length2(), 1.0), "{v} is not a unit vector");
     const INV_SQRT_3: f32 = 0.57735026919; // 1 / √3
     if v.x0().abs() < INV_SQRT_3 {
         V3::X0

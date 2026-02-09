@@ -269,7 +269,7 @@ impl Car {
             let wheel_pos = self.chassis.position + self.wheels[i].position;
             let forward = self.wheels[i].rotation.y_axis();
             let forward = V3::new([forward.x0(), 0.0, forward.x1()]);
-            let arrow_verts = arrow(wheel_pos, forward, 1.5);
+            let arrow_verts = arrow(wheel_pos, wheel_pos + 1.5 * forward)?;
             context.update_colored_mesh(self.debug_arrows[i].mesh_id, &arrow_verts, &[])?;
         }
 
