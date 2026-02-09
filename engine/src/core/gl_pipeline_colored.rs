@@ -25,7 +25,7 @@ fn add_unit_cube_quad(verts: &mut Vec<Vertex>, indices: &mut Vec<u32>, u: V3, v:
         Vertex { pos: 0.5 * (n - u + v), n },
     ]);
 
-    indices.extend_from_slice(&[i, i + 1, i + 2, i + 2, i + 3, i]);
+    indices.extend_from_slice(&[i, i + 2, i + 1, i, i + 3, i + 2]);
 }
 
 // --------------------------------------------------------------------------------
@@ -56,7 +56,7 @@ pub fn add_plane_quad(verts: &mut Vec<Vertex>, indices: &mut Vec<u32>, u: V3, v:
         Vertex { pos: u + v, n },
         Vertex { pos: -u + v, n },
     ]);
-    indices.extend_from_slice(&[i, i + 1, i + 2, i + 2, i + 3, i]);
+    indices.extend_from_slice(&[i, i + 2, i + 1, i, i + 3, i + 2]);
 }
 
 // --------------------------------------------------------------------------------
@@ -113,7 +113,7 @@ pub fn cylinder(sides: usize, radius: f32, height: f32) -> (Vec<Vertex>, Vec<u32
     let mut indices = Vec::with_capacity(sides * 6);
     for i in 0..sides {
         let i0 = (i * 2) as u32;
-        indices.extend_from_slice(&[i0, i0 + 2, i0 + 1, i0 + 2, i0 + 3, i0 + 1]);
+        indices.extend_from_slice(&[i0, i0 + 1, i0 + 2, i0 + 2, i0 + 1, i0 + 3]);
     }
 
     // indices for the top and bottom caps
@@ -122,7 +122,7 @@ pub fn cylinder(sides: usize, radius: f32, height: f32) -> (Vec<Vertex>, Vec<u32
     for i in 0..sides {
         let rim0 = rim + (i as u32) * 2;
         let rim1 = rim0 + 2;
-        indices.extend_from_slice(&[center, rim1, rim0, center + 1, rim0 + 1, rim1 + 1]);
+        indices.extend_from_slice(&[center, rim0, rim1, center + 1, rim1 + 1, rim0 + 1]);
     }
 
     (verts, indices)

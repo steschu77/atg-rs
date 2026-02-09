@@ -96,7 +96,7 @@ impl Terrain {
                 let i2 = i0 + (chunk_size + 1);
                 let i3 = i2 + 1;
 
-                indices.extend_from_slice(&[i0, i2, i1, i1, i2, i3]);
+                indices.extend_from_slice(&[i0, i1, i2, i1, i3, i2]);
             }
         }
 

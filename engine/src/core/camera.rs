@@ -111,10 +111,10 @@ impl Camera {
     }
 
     pub fn yaw(&mut self, x: f32) {
-        self.direction += V4::new([0.0, x, 0.0, 0.0]);
+        self.direction -= V4::new([0.0, x, 0.0, 0.0]);
     }
 
     pub fn tilt(&mut self, y: f32) {
-        self.direction += V4::new([y, 0.0, 0.0, 0.0]);
+        self.direction -= V4::new([y, 0.0, 0.0, 0.0]);
     }
 }

@@ -27,6 +27,7 @@ pub struct World {
     debug: RenderObject,
     terrain_chunks: Vec<RenderObject>,
     terrain_normal_arrows: Vec<RenderObject>,
+    debug_arrows: Vec<RenderObject>,
     _font: gl_font::Font,
     t: std::time::Duration,
 }
@@ -41,13 +42,22 @@ impl World {
             texture: font.texture,
         });
 
-        let color_id = render_context.insert_material(GlMaterial::Color {
+        let green_id = render_context.insert_material(GlMaterial::Color {
             color: V3::new([0.0, 1.0, 0.0]), // Green arrows
+        });
+        let red_id = render_context.insert_material(GlMaterial::Color {
+            color: V3::new([1.0, 0.0, 0.0]), // Red arrows
+        });
+        let blue_id = render_context.insert_material(GlMaterial::Color {
+            color: V3::new([0.0, 0.0, 1.0]), // Blue arrows
         });
 
         let terrain = Terrain::default();
         //let terrain = Terrain::from_png(Path::new("assets/terrain/heightmap.png"))?;
-        let camera = Camera::new(V4::new([0.0, 4.0, 4.0, 1.0]), V4::new([0.0, 0.0, 0.0, 1.0]));
+        let camera = Camera::new(
+            V4::new([0.0, 4.0, -1.0, 1.0]),
+            V4::new([0.0, 0.0, 0.0, 1.0]),
+        );
         let t = std::time::Duration::ZERO;
 
         let mesh = create_text_mesh(&font, "Debug Text: Hello, World!")?;
@@ -98,11 +108,60 @@ impl World {
                     },
                     pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
                     mesh_id,
-                    material_id: color_id,
+                    material_id: green_id,
                     ..Default::default()
                 });
             }
         }
+
+        use crate::core::gl_pipeline_colored::arrow;
+        let x0_arrow_verts = arrow(V3::ZERO, V3::X0, 1.0);
+        let x1_arrow_verts = arrow(V3::ZERO, V3::X1, 1.0);
+        let x2_arrow_verts = arrow(V3::ZERO, V3::X2, 1.0);
+        let x0_debug_arrow_mesh_id =
+            render_context.create_colored_mesh(&x0_arrow_verts, &[], true)?;
+        let x1_debug_arrow_mesh_id =
+            render_context.create_colored_mesh(&x1_arrow_verts, &[], true)?;
+        let x2_debug_arrow_mesh_id =
+            render_context.create_colored_mesh(&x2_arrow_verts, &[], true)?;
+        let debug_arrows = vec![
+            RenderObject {
+                name: String::from("sphere_debug_arrow"),
+                transform: Transform {
+                    position: V4::new([0.0, 0.0, 0.0, 1.0]),
+                    rotation: Rotation::default(),
+                    size: V4::new([1.0, 1.0, 1.0, 1.0]),
+                },
+                pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
+                mesh_id: x0_debug_arrow_mesh_id,
+                material_id: green_id,
+                ..Default::default()
+            },
+            RenderObject {
+                name: String::from("sphere_debug_arrow"),
+                transform: Transform {
+                    position: V4::new([0.0, 0.0, 0.0, 1.0]),
+                    rotation: Rotation::default(),
+                    size: V4::new([1.0, 1.0, 1.0, 1.0]),
+                },
+                pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
+                mesh_id: x1_debug_arrow_mesh_id,
+                material_id: red_id,
+                ..Default::default()
+            },
+            RenderObject {
+                name: String::from("sphere_debug_arrow"),
+                transform: Transform {
+                    position: V4::new([0.0, 0.0, 0.0, 1.0]),
+                    rotation: Rotation::default(),
+                    size: V4::new([1.0, 1.0, 1.0, 1.0]),
+                },
+                pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
+                mesh_id: x2_debug_arrow_mesh_id,
+                material_id: blue_id,
+                ..Default::default()
+            },
+        ];
 
         let player = Player::new(&mut render_context);
 
@@ -126,6 +185,7 @@ impl World {
             debug,
             terrain_chunks,
             terrain_normal_arrows,
+            debug_arrows,
             car,
             _font: font,
             t,
@@ -154,6 +214,7 @@ impl World {
 
         //let (forward, position) = self.player.transform();
         let (forward, position) = self.car.transform();
+        //let (forward, position) = (V4::X2, V4::ZERO);
 
         let mesh = create_text_mesh(&self._font, &format!("{position}"))?;
         self.render_context
@@ -175,6 +236,7 @@ impl World {
         objects.extend(self.player.debug_arrows.iter().cloned());
         objects.push(self.debug.clone());
         objects.extend(self.car.objects.iter().cloned());
+        objects.extend(self.debug_arrows.iter().cloned());
 
         objects
     }

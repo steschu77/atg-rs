@@ -53,6 +53,9 @@ pub const OUT_OF_MEMORY: GLenum = 0x0505;
 pub const INVALID_FRAMEBUFFER_OPERATION: GLenum = 0x0506;
 pub const CONTEXT_LOST: GLenum = 0x0507;
 
+pub const CW: GLenum = 0x0900;
+pub const CCW: GLenum = 0x0901;
+
 pub const TEXTURE_1D: GLenum = 0x0DE0;
 pub const TEXTURE_2D: GLenum = 0x0DE1;
 pub const TEXTURE_3D: GLenum = 0x806F;
@@ -211,6 +214,8 @@ pub type FnBlendFunc = unsafe fn(GLenum, GLenum);
 pub type FnPointSize = unsafe fn(GLfloat);
 pub type FnLineWidth = unsafe fn(GLfloat);
 pub type FnPolygonMode = unsafe fn(GLenum, GLenum);
+pub type FnCullFace = unsafe fn(GLenum);
+pub type FnFrontFace = unsafe fn(GLenum);
 
 pub type FnGenTextures = unsafe fn(GLsizei, *mut GLuint);
 pub type FnBindTexture = unsafe fn(GLenum, GLuint);
@@ -310,6 +315,8 @@ pub struct OpenGlFunctions {
     fnPointSize: FnPointSize,
     fnLineWidth: FnLineWidth,
     fnPolygonMode: FnPolygonMode,
+    fnCullFace: FnCullFace,
+    fnFrontFace: FnFrontFace,
 
     fnGenTextures: FnGenTextures,
     fnBindTexture: FnBindTexture,
@@ -444,6 +451,8 @@ impl OpenGlFunctions {
             fnPointSize: load_gl_fn!(load_fn, "glPointSize\0" => FnPointSize)?,
             fnLineWidth: load_gl_fn!(load_fn, "glLineWidth\0" => FnLineWidth)?,
             fnPolygonMode: load_gl_fn!(load_fn, "glPolygonMode\0" => FnPolygonMode)?,
+            fnCullFace: load_gl_fn!(load_fn, "glCullFace\0" => FnCullFace)?,
+            fnFrontFace: load_gl_fn!(load_fn, "glFrontFace\0" => FnFrontFace)?,
             
             fnGenTextures: load_gl_fn!(load_fn, "glGenTextures\0" => FnGenTextures)?,
             fnBindTexture: load_gl_fn!(load_fn, "glBindTexture\0" => FnBindTexture)?,
@@ -543,6 +552,8 @@ impl OpenGlFunctions {
     impl_gl_fn!(fnPointSize, PointSize(size: GLfloat));
     impl_gl_fn!(fnLineWidth, LineWidth(width: GLfloat));
     impl_gl_fn!(fnPolygonMode, PolygonMode(face: GLenum, mode: GLenum));
+    impl_gl_fn!(fnCullFace, CullFace(mode: GLenum));
+    impl_gl_fn!(fnFrontFace, FrontFace(mode: GLenum));
 
     impl_gl_fn!(fnGenTextures, GenTextures(n: GLsizei, textures: *mut GLuint));
     impl_gl_fn!(fnBindTexture, BindTexture(target: GLenum, texture: GLuint));
