@@ -109,14 +109,14 @@ pub fn rotate(v: &V4, rad: f32) -> M4x4 {
 #[rustfmt::skip]
 pub fn look_at(eye: V4, at: V4, up: V4) -> M4x4 {
     let zaxis = (at - eye).norm();              // Camera Forward vector
-    let xaxis = V4::cross(zaxis, up).norm();  // Camera Side vector
-    let yaxis = V4::cross(xaxis, zaxis);      // Camera Up vector
+    let xaxis = V4::cross(up, zaxis).norm();  // Camera Side vector
+    let yaxis = V4::cross(zaxis, xaxis);      // Camera Up vector
 
     M4x4::new([
-        xaxis.x0(), yaxis.x0(), -zaxis.x0(), 0.0,
-        xaxis.x1(), yaxis.x1(), -zaxis.x1(), 0.0,
-        xaxis.x2(), yaxis.x2(), -zaxis.x2(), 0.0,
-       -xaxis*eye, -yaxis*eye,   zaxis*eye,  1.0,
+        xaxis.x0(), yaxis.x0(), zaxis.x0(), 0.0,
+        xaxis.x1(), yaxis.x1(), zaxis.x1(), 0.0,
+        xaxis.x2(), yaxis.x2(), zaxis.x2(), 0.0,
+       -xaxis*eye, -yaxis*eye, -zaxis*eye,  1.0,
     ])
 }
 
@@ -145,7 +145,7 @@ pub fn perspective(fov: f32, aspect: f32, zn: f32, zf: f32) -> M4x4 {
     M4x4::zero()
         .with((0, 0), y / aspect)
         .with((1, 1), y)
-        .with((2, 2), -(zf + zn) * dz)
-        .with((3, 2), -1.0)
-        .with((2, 3), -2.0 * zn * zf * dz)
+        .with((2, 2), zf * dz)
+        .with((3, 2), 1.0)
+        .with((2, 3), -zn * zf * dz)
 }
