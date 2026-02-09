@@ -78,3 +78,77 @@ pub fn rotate(v: V3, rad: f32) -> M3x3 {
         b20, b21, b22,
     ])
 }
+
+// ----------------------------------------------------------------------------
+// Constructs an orthonormal, right-handed basis from a single direction vector.
+// Guarantees
+// - The specified axis is preserved
+// Non-guarantees
+// - The orientation of the remaining two axes is not fixed.
+pub fn basis_from_x0(x0: V3) -> M3x3 {
+    debug_assert!((x0.length2() - 1.0).abs() < f32::EPSILON);
+    let x2 = x0.cross(approx_orthogonal_axis(x0)).norm();
+    let x1 = x2.cross(x0).norm();
+    M3x3::from_cols(x0, x1, x2)
+}
+
+// ----------------------------------------------------------------------------
+pub fn basis_from_x1(x1: V3) -> M3x3 {
+    debug_assert!((x1.length2() - 1.0).abs() < f32::EPSILON);
+    let x0 = x1.cross(approx_orthogonal_axis(x1)).norm();
+    let x2 = x0.cross(x1).norm();
+    M3x3::from_cols(x0, x1, x2)
+}
+
+// ----------------------------------------------------------------------------
+pub fn basis_from_x2(x2: V3) -> M3x3 {
+    debug_assert!((x2.length2() - 1.0).abs() < f32::EPSILON);
+    let x1 = x2.cross(approx_orthogonal_axis(x2)).norm();
+    let x0 = x1.cross(x2).norm();
+    M3x3::from_cols(x0, x1, x2)
+}
+
+// ----------------------------------------------------------------------------
+#[allow(clippy::collapsible_else_if)]
+#[allow(clippy::excessive_precision)]
+fn approx_orthogonal_axis(v: V3) -> V3 {
+    debug_assert!((v.length2() - 1.0).abs() < f32::EPSILON);
+    const INV_SQRT_3: f32 = 0.57735026919; // 1 / √3
+    if v.x0().abs() < INV_SQRT_3 {
+        V3::X0
+    } else if v.x1().abs() < INV_SQRT_3 {
+        V3::X1
+    } else {
+        V3::X2
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn basis_preserves_axis() {
+        let v = V3::uniform(1.0 / 3.0_f32.sqrt());
+
+        let m0 = basis_from_x0(v);
+        let m1 = basis_from_x1(v);
+        let m2 = basis_from_x2(v);
+
+        let r0 = m0 * V3::X0;
+        let r1 = m1 * V3::X1;
+        let r2 = m2 * V3::X2;
+
+        assert_eq!(r0, v);
+        assert_eq!(r1, v);
+        assert_eq!(r2, v);
+    }
+
+    #[test]
+    fn basis_is_orthonormal() {
+        let v = V3::uniform(1.0 / 3.0_f32.sqrt());
+        assert!(basis_from_x0(v).is_orthonormal());
+        assert!(basis_from_x1(v).is_orthonormal());
+        assert!(basis_from_x2(v).is_orthonormal());
+    }
+}
