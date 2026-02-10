@@ -1,8 +1,9 @@
 use crate::core::component::{Component, Context};
 use crate::core::game_input::GameKey;
-use crate::core::gl_renderer::{RenderContext, RenderObject, Rotation, Transform};
+use crate::core::gl_renderer::{RenderContext, RenderObject, Transform};
 use crate::error::Result;
-use crate::v2d::{m3x3::M3x3, r2::R2, v3::V3, v4::V4};
+use crate::v2d::{affine3x3, m3x3::M3x3, q::Q, r2::R2, v3::V3, v4::V4};
+use crate::x2d::{self, mass::Mass, rigid_body::RigidBody};
 
 // ----------------------------------------------------------------------------
 #[derive(Debug, Clone, Default)]
@@ -17,27 +18,49 @@ pub struct Geometry {
 }
 
 // ----------------------------------------------------------------------------
+pub const GRAVITY: V3 = V3::new([0.0, -9.81, 0.0]);
+
+// ----------------------------------------------------------------------------
 #[derive(Debug, Clone, Default)]
 pub struct ChassisData {
     pub position: V3,
     pub velocity: V3,
-    pub mass: f32,
     pub rotation: R2,
     pub angular_velocity: V3,
-    pub inertia: V3,
     pub steering_angle: f32,
 }
 
 // ----------------------------------------------------------------------------
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct WheelData {
+    pub wheel: WheelPos,
     pub position: V3,
     pub radius: f32,
     pub width: f32,
     pub rotation: R2,
-    pub suspension_length: f32,
-    pub spring_constant: f32,
-    pub damping_coefficient: f32,
+    pub rest_length: f32,
+    pub spring_k: f32,
+    pub damper_c: f32,
+    pub compression: f32,
+    pub grip: f32,
+}
+
+// ----------------------------------------------------------------------------
+impl Default for WheelData {
+    fn default() -> Self {
+        Self {
+            wheel: WheelPos::FL,
+            position: V3::zero(),
+            radius: 0.3,
+            width: 0.2,
+            rotation: R2::default(),
+            rest_length: 0.8,
+            spring_k: 18_000.0,
+            damper_c: 2_100.0,
+            compression: 0.0,
+            grip: 5.0 * 8.0,
+        }
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -113,13 +136,128 @@ impl WheelPos {
 }
 
 // ----------------------------------------------------------------------------
+// Not used yet
+fn compute_steer_angle(input: f32, speed: f32) -> f32 {
+    let max_steer = 0.6; // ~35 degrees
+    let min_steer = 0.15;
+
+    let t = (speed / 30.0).clamp(0.0, 1.0);
+    let steer = max_steer * (1.0 - t) + min_steer * t;
+
+    input * steer
+}
+
+// ----------------------------------------------------------------------------
+fn wheel_basis_static(body: &RigidBody) -> (V3, V3) {
+    let forward = body.rotation().rotate(V3::X2);
+    let right = body.rotation().rotate(V3::X0);
+    (forward, right)
+}
+
+// ----------------------------------------------------------------------------
+fn wheel_basis_steering(body: &RigidBody, steer_angle: f32) -> (V3, V3) {
+    let car_forward = body.rotation().rotate(V3::X2);
+    let car_up = body.rotation().rotate(V3::X1);
+
+    let steer_q = Q::from_axis_angle(car_up, steer_angle);
+    let forward = steer_q.rotate(car_forward).norm();
+    let right = car_up.cross(forward).norm();
+
+    (forward, right)
+}
+
+// ----------------------------------------------------------------------------
+// Simple raycast for ground plane at y=0. Sophisticated terrain raycasting comes later.
+fn raycast_down(origin: V3, max_dist: f32) -> Option<f32> {
+    if origin.x1() <= 0.0 {
+        return Some(0.0);
+    }
+
+    let hit_dist = origin.x1();
+
+    if hit_dist <= max_dist {
+        Some(hit_dist)
+    } else {
+        None
+    }
+}
+
+// ----------------------------------------------------------------------------
+fn apply_wheel_suspension(body: &mut RigidBody, wheel: &mut WheelData, steer_angle: f32, dt: f32) {
+    let wheel_pos = body.to_world(wheel.position);
+    let ray_len = wheel.rest_length + wheel.radius;
+
+    if let Some(hit_dist) = raycast_down(wheel_pos, ray_len) {
+        let compression = wheel.rest_length - (hit_dist - wheel.radius);
+        let compression = compression.max(0.0);
+
+        let spring_force = compression * wheel.spring_k;
+
+        let compression_rate = (compression - wheel.compression) / dt;
+        let damper_force = compression_rate * wheel.damper_c;
+
+        let total_force = spring_force + damper_force;
+        let up = body.rotation().rotate(V3::X1);
+        let force = up * total_force;
+
+        // Very basic ground collision response: if the wheel is penetrating the ground, push it up
+        // Real collision response comes later.
+        if wheel_pos.x1() < 0.0 {
+            let penetration = -wheel_pos.x1();
+            body.pos += V3::new([0.0, penetration, 0.0]);
+        }
+
+        body.apply_force_at(force, wheel_pos);
+
+        let normal_force = total_force.max(0.0);
+        apply_wheel_tire_forces(body, wheel, wheel_pos, normal_force, steer_angle, dt);
+
+        wheel.compression = compression;
+    } else {
+        wheel.compression = 0.0;
+    }
+}
+
+// ----------------------------------------------------------------------------
+fn apply_wheel_tire_forces(
+    body: &mut RigidBody,
+    wheel: &WheelData,
+    contact_point: V3,
+    normal_force: f32,
+    steer_angle: f32,
+    dt: f32,
+) {
+    let (_forward, right) = if wheel.wheel.is_front() {
+        wheel_basis_steering(body, steer_angle)
+    } else {
+        wheel_basis_static(body)
+    };
+
+    let v = body.velocity_at(contact_point);
+    let v_side = v.dot(right);
+
+    let desired_impulse = -v_side * body.mass();
+
+    // Coulomb friction clamp
+    let friction_coeff = 1.0;
+    let max_impulse = normal_force * friction_coeff * dt;
+
+    let side_impulse = desired_impulse.clamp(-max_impulse, max_impulse);
+
+    body.apply_impulse_at(right * side_impulse, contact_point);
+}
+
+// ----------------------------------------------------------------------------
 #[derive(Debug)]
 pub struct Car {
+    pub body: RigidBody,
     pub objects: [RenderObject; 5],
     pub debug_arrows: [RenderObject; 2],
     pub chassis: ChassisData,
     pub wheels: [WheelData; 4],
     pub geometry: Geometry,
+    pub engine_force: f32,
+    pub brake_force: f32,
 }
 
 // ----------------------------------------------------------------------------
@@ -136,8 +274,20 @@ impl Car {
             M3x3::from_cols(-V3::X1, V3::X0, V3::X2),
         );
         let wheel_mesh_id = context.create_colored_mesh(&verts, &indices, false)?;
+        let dimensions = V3::new([geo.width, 0.2, geo.length]);
+
+        // This is temporary and gives the car 952 kg.
+        let material = x2d::WOOD;
+        let mass = Mass::from_box(material.density, dimensions)?;
+        let body = RigidBody::new(
+            mass,
+            material,
+            V3::new([0.0, 5.0 + geo.wheel_radius + 0.2, 0.0]),
+            Q::identity(),
+        );
 
         Ok(Self {
+            body,
             objects: [
                 RenderObject {
                     name: String::from("car:chassis"),
@@ -222,31 +372,33 @@ impl Car {
                 },
             ],
             chassis: ChassisData {
-                position: V3::new([0.0, geo.wheel_radius + 0.2, 0.0]),
-                mass: 1200.0,
-                inertia: V3::new([1500.0, 1500.0, 1500.0]),
+                position: V3::new([0.0, 5.0 + geo.wheel_radius + 0.2, 0.0]),
                 ..Default::default()
             },
             wheels: [
                 WheelData {
+                    wheel: WheelPos::FL,
                     position: V3::new([-0.5 * geo.wheel_track, 0.0, 0.5 * geo.wheel_base]),
                     radius: geo.wheel_radius,
                     width: geo.wheel_width,
                     ..Default::default()
                 },
                 WheelData {
+                    wheel: WheelPos::FR,
                     position: V3::new([0.5 * geo.wheel_track, 0.0, 0.5 * geo.wheel_base]),
                     radius: geo.wheel_radius,
                     width: geo.wheel_width,
                     ..Default::default()
                 },
                 WheelData {
+                    wheel: WheelPos::RL,
                     position: V3::new([-0.5 * geo.wheel_track, 0.0, -0.5 * geo.wheel_base]),
                     radius: geo.wheel_radius,
                     width: geo.wheel_width,
                     ..Default::default()
                 },
                 WheelData {
+                    wheel: WheelPos::RR,
                     position: V3::new([0.5 * geo.wheel_track, 0.0, -0.5 * geo.wheel_base]),
                     radius: geo.wheel_radius,
                     width: geo.wheel_width,
@@ -254,6 +406,8 @@ impl Car {
                 },
             ],
             geometry: geo,
+            engine_force: 0.0,
+            brake_force: 0.0,
         })
     }
 
@@ -295,30 +449,52 @@ impl Component for Car {
         const TURN_SPEED: f32 = 1.5;
         let dt = ctx.dt_secs();
 
-        let accelerate = ctx.state.is_pressed(GameKey::Accelerate);
-        let brake = ctx.state.is_pressed(GameKey::Brake);
-        if accelerate {
-            self.chassis.velocity += V3::new([
-                0.0,
-                0.0,
-                50.0 * dt, // forward in local space
-            ]);
+        if ctx.state.is_pressed(GameKey::Accelerate) {
+            self.engine_force += 1000.0 * dt;
+            self.body.apply_force(V3::new([0.0, 0.0, 20000.0]));
         }
-        if brake {
-            self.chassis.velocity -= V3::new([
-                0.0,
-                0.0,
-                50.0 * dt, // forward in local space
-            ]);
+        if ctx.state.is_pressed(GameKey::Brake) {
+            self.brake_force += 1000.0 * dt;
+            self.body.apply_force(V3::new([0.0, 0.0, -20000.0]));
         }
-        self.chassis.position += self.chassis.velocity * dt;
-
         if ctx.state.is_pressed(GameKey::SteerLeft) {
-            self.chassis.steering_angle -= TURN_SPEED * dt;
-        }
-        if ctx.state.is_pressed(GameKey::SteerRight) {
             self.chassis.steering_angle += TURN_SPEED * dt;
         }
+        if ctx.state.is_pressed(GameKey::SteerRight) {
+            self.chassis.steering_angle -= TURN_SPEED * dt;
+        }
+
+        self.body.apply_force(GRAVITY * self.body.mass());
+
+        apply_wheel_suspension(
+            &mut self.body,
+            &mut self.wheels[0],
+            self.chassis.steering_angle,
+            dt,
+        );
+        apply_wheel_suspension(
+            &mut self.body,
+            &mut self.wheels[1],
+            self.chassis.steering_angle,
+            dt,
+        );
+        apply_wheel_suspension(
+            &mut self.body,
+            &mut self.wheels[2],
+            self.chassis.steering_angle,
+            dt,
+        );
+        apply_wheel_suspension(
+            &mut self.body,
+            &mut self.wheels[3],
+            self.chassis.steering_angle,
+            dt,
+        );
+
+        self.body.integrate(dt);
+
+        self.chassis.position = self.body.position();
+        self.chassis.velocity = self.body.velocity();
 
         self.objects[0].transform.position = V4::new([
             self.chassis.position.x0(),
@@ -327,9 +503,10 @@ impl Component for Car {
             1.0,
         ]);
 
-        let rotation = self.chassis.rotation.get();
-        let rotation = Rotation::Euler(V3::new([0.0, rotation, 0.0]));
-        self.objects[0].transform.rotation = rotation;
+        self.objects[0].transform.rotation = self.body.rotation().into();
+
+        let chassis_rot = self.body.rotation();
+        let chassis_transform = self.body.rotation().as_mat3x3();
 
         for (i, wheel) in &mut self.wheels.iter().enumerate() {
             let steering_angle = if WheelPos::from(i).is_front() {
@@ -337,11 +514,15 @@ impl Component for Car {
             } else {
                 0.0
             };
-            let wheel_pos = self.chassis.position + wheel.position;
-            let wheel_rot = Rotation::Euler(V3::new([wheel.rotation.get(), steering_angle, 0.0]));
+
+            let wheel_pos = wheel.position + V3::new([0.0, wheel.compression, 0.0]);
+            let wheel_pos = self.chassis.position + chassis_transform * wheel_pos;
+            let wheel_rot =
+                affine3x3::rotate_x1(steering_angle) * affine3x3::rotate_x0(wheel.rotation.get());
+            let wheel_rot = chassis_rot * Q::from_mat3(&wheel_rot);
             self.objects[1 + i].transform.position =
                 V4::new([wheel_pos.x0(), wheel_pos.x1(), wheel_pos.x2(), 1.0]);
-            self.objects[1 + i].transform.rotation = wheel_rot;
+            self.objects[1 + i].transform.rotation = wheel_rot.into();
         }
 
         Ok(())
