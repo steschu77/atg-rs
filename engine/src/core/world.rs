@@ -8,6 +8,7 @@ use crate::core::{
     gl_text::create_text_mesh,
     input,
     player::Player,
+    sphere::PhysicsSphere,
     terrain::Terrain,
 };
 use crate::error::Result;
@@ -27,6 +28,7 @@ pub struct World {
     debug: RenderObject,
     terrain_chunks: Vec<RenderObject>,
     terrain_normal_arrows: Vec<RenderObject>,
+    sphere: PhysicsSphere,
     debug_arrows: Vec<RenderObject>,
     _font: gl_font::Font,
     t: std::time::Duration,
@@ -114,6 +116,12 @@ impl World {
             }
         }
 
+        let mut sphere = PhysicsSphere::new(&mut render_context, V3::new([2.0, 5.0, 2.0]), 0.5)?;
+        sphere.apply_initial_impulse(
+            V3::new([2.0, 0.0, 3.0]), // Linear velocity (m/s)
+            V3::new([0.0, 0.0, 0.0]), // Angular velocity (rad/s)
+        );
+
         use crate::core::gl_pipeline_colored::arrow;
         let x0_arrow_verts = arrow(V3::ZERO, V3::X0)?;
         let x1_arrow_verts = arrow(V3::ZERO, V3::X1)?;
@@ -185,6 +193,7 @@ impl World {
             debug,
             terrain_chunks,
             terrain_normal_arrows,
+            sphere,
             debug_arrows,
             car,
             _font: font,
@@ -209,11 +218,14 @@ impl World {
         self.camera.update(&ctx)?;
         self.player.update(&ctx)?;
         self.car.update(&ctx)?;
+        self.sphere.update(&ctx)?;
 
         self.player.update_debug_arrows(&mut self.render_context)?;
+        self.sphere.update_debug_arrows(&mut self.render_context)?;
 
         //let (forward, position) = self.player.transform();
         let (forward, position) = self.car.transform();
+        //let (forward, position) = self.sphere.transform();
         //let (forward, position) = (V4::X2, V4::ZERO);
 
         let mesh = create_text_mesh(&self._font, &format!("{position}"))?;
@@ -236,6 +248,8 @@ impl World {
         objects.extend(self.player.debug_arrows.iter().cloned());
         objects.push(self.debug.clone());
         objects.extend(self.car.objects.iter().cloned());
+        objects.push(self.sphere.object.clone());
+        objects.push(self.sphere.debug_arrow.clone());
         objects.extend(self.debug_arrows.iter().cloned());
 
         objects
