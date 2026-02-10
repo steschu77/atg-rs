@@ -196,9 +196,9 @@ impl Terrain {
         z: f32,
         length: f32,
     ) -> Result<usize> {
+        let pos = V3::new([x, self.height_at(x, z), z]);
         let normal = self.normal_at(x, z);
-        let verts =
-            gl_pipeline_colored::arrow(V3::new([x, self.height_at(x, z), z]), normal, length);
+        let verts = gl_pipeline_colored::arrow(pos, pos + length * normal)?;
         context.create_colored_mesh(&verts, &[], true)
     }
 }

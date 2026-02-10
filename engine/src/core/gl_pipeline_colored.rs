@@ -1,7 +1,8 @@
 use crate::core::gl_graphics;
 use crate::core::gl_pipeline::{GlMaterial, GlMesh, GlPipeline, GlUniforms};
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::sys::opengl as gl;
+use crate::v2d::affine3x3;
 use crate::v2d::{m3x3::M3x3, v3::V3};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -272,34 +273,33 @@ pub fn icosphere(radius: f32, subdivisions: u32) -> (Vec<Vertex>, Vec<u32>) {
 // ----------------------------------------------------------------------------
 // Creates a debug arrow mesh starting at 'origin', pointing in normalized 'dir'
 // direction with given 'length'. Uses tetrahedrons for the arrow shaft and head.
-pub fn arrow(origin: V3, n: V3, length: f32) -> Vec<Vertex> {
-    let mut verts = Vec::new();
+pub fn arrow(from: V3, to: V3) -> Result<Vec<Vertex>> {
+    let dir = to - from;
+    let length = dir.length();
+    if length < f32::EPSILON {
+        return Err(Error::InvalidLength);
+    }
+    let n = dir / length;
+    let m = affine3x3::basis_from_x1(n);
 
-    let v0 = origin;
-    let v1 = origin + n * length * 0.8;
+    let v0 = from;
+    let v1 = from + 0.8 * dir;
 
     let shaft = tetrahedron(length * 0.1, length * 0.8);
     let head = tetrahedron(length * 0.1, length * 0.2);
 
-    let x_axis = if n.x0().abs() > 0.1 {
-        V3::new([0.0, 1.0, 0.0])
-    } else {
-        V3::new([1.0, 0.0, 0.0])
-    };
-    let z_axis = n.cross(x_axis).norm();
-    let x_axis = z_axis.cross(n).norm();
-
+    let mut verts = Vec::new();
     verts.extend(shaft.iter().map(|v| Vertex {
-        pos: v0 + n * v.pos.x1() + x_axis * v.pos.x0() + z_axis * v.pos.x2(),
-        n: v.n,
+        pos: v0 + m * v.pos,
+        n: m * v.n,
     }));
 
     verts.extend(head.iter().map(|v| Vertex {
-        pos: v1 + n * v.pos.x1() + x_axis * v.pos.x0() + z_axis * v.pos.x2(),
-        n: v.n,
+        pos: v1 + m * v.pos,
+        n: m * v.n,
     }));
 
-    verts
+    Ok(verts)
 }
 
 // ----------------------------------------------------------------------------
