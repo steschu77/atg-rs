@@ -28,14 +28,22 @@ pub struct RigidBody {
     mass: Mass,
     material: Material,
 
-    pos: V3,
+    pub pos: V3,
     rot: Q,
 
     linear_vel: V3,
-    angular_vel: V3,
+    pub angular_vel: V3,
 
     force: V3,
     torque: V3,
+
+    inv_inertia_tensor: M3x3,
+}
+
+// ----------------------------------------------------------------------------
+fn get_inv_inertia_tensor(rot: Q, inv_inertia_body: V3) -> M3x3 {
+    let rot_mat = rot.as_mat3x3();
+    rot_mat * M3x3::diag(inv_inertia_body) * rot_mat.transpose()
 }
 
 // ----------------------------------------------------------------------------
@@ -51,6 +59,7 @@ impl RigidBody {
             angular_vel: V3::zero(),
             force: V3::zero(),
             torque: V3::zero(),
+            inv_inertia_tensor: get_inv_inertia_tensor(rot, mass.inv_inertia()),
         }
     }
 
@@ -75,6 +84,16 @@ impl RigidBody {
     }
 
     // ------------------------------------------------------------------------
+    pub fn restitution(&self) -> f32 {
+        self.material.restitution
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn friction(&self) -> f32 {
+        self.material.static_friction
+    }
+
+    // ------------------------------------------------------------------------
     pub fn position(&self) -> V3 {
         self.pos
     }
@@ -82,6 +101,16 @@ impl RigidBody {
     // ------------------------------------------------------------------------
     pub fn velocity(&self) -> V3 {
         self.linear_vel
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn rotation(&self) -> Q {
+        self.rot
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn angular_velocity(&self) -> V3 {
+        self.angular_vel
     }
 
     // ------------------------------------------------------------------------
@@ -103,15 +132,38 @@ impl RigidBody {
 
     // ------------------------------------------------------------------------
     pub fn apply_force(&mut self, force: V3) {
+        log::info!("RigidBody::apply_force(force: {force})");
         self.force += force;
     }
 
     // ------------------------------------------------------------------------
     pub fn apply_force_at(&mut self, force: V3, world_pt: V3) {
+        log::info!("RigidBody::apply_force_at(force: {force}, world_pt: {world_pt})");
         self.force += force;
 
         let r = world_pt - self.pos;
         self.torque += r.cross(force);
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn apply_impulse(&mut self, impulse: V3) {
+        log::info!("RigidBody::apply_impulse(impulse: {impulse})");
+        self.linear_vel += impulse * self.inv_mass();
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn apply_impulse_at(&mut self, impulse: V3, world_pt: V3) {
+        log::info!("RigidBody::apply_impulse_at(impulse: {impulse}, world_pt: {world_pt})");
+
+        // Linear velocity
+        self.linear_vel += impulse * self.inv_mass();
+
+        // Angular velocity
+        let r = world_pt - self.pos;
+        let angular_impulse = r.cross(impulse);
+
+        let inv_inertia_world = get_inv_inertia_tensor(self.rot, self.mass.inv_inertia());
+        self.angular_vel += inv_inertia_world * angular_impulse;
     }
 
     // ------------------------------------------------------------------------
@@ -120,9 +172,7 @@ impl RigidBody {
         let lin_accel = self.force * self.inv_mass();
 
         // This ignores gyroscopic terms (ω × Iω) for stability and simplicity.
-        let rot_mat = self.rot.as_mat3x3();
-        let inv_inertia_world = rot_mat * M3x3::diag(self.inv_inertia()) * rot_mat.transpose();
-        let ang_accel = inv_inertia_world * self.torque;
+        let ang_accel = self.inv_inertia_tensor * self.torque;
 
         self.force = V3::zero();
         self.torque = V3::zero();
@@ -134,6 +184,15 @@ impl RigidBody {
 
         let dq = from_angular_velocity(self.angular_vel * dt);
         self.rot = (self.rot * dq).norm();
+
+        self.inv_inertia_tensor = get_inv_inertia_tensor(self.rot, self.mass.inv_inertia());
+
+        //log::info!("RigidBody::integrate(dt: {dt}) → self: {self:?}");
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn log(&self) {
+        //log::info!("RigidBody: {self:?}");
     }
 }
 
@@ -286,5 +345,53 @@ mod tests {
 
         assert_float_eq!(x_world.x0(), 0.0);
         assert_float_eq!(x_world.x1(), 1.0);
+    }
+
+    // Linear impulse at center → linear velocity only
+    // This verifies:
+    // * impulse changes velocity immediately
+    // * position does not change until integration
+    // * no angular velocity is introduced
+    #[test]
+    fn apply_impulse_linear_only() {
+        let mut body = RigidBody::new(
+            Mass::new(2.0, V3::one()).unwrap(),
+            Material::default(),
+            V3::zero(),
+            Q::identity(),
+        );
+
+        let impulse = V3::new([4.0, 0.0, 0.0]); // Δv = 2
+        body.apply_impulse(impulse);
+
+        assert_eq!(body.position(), V3::zero());
+        assert_eq!(body.velocity(), V3::new([2.0, 0.0, 0.0]));
+        assert_eq!(body.angular_velocity(), V3::zero());
+
+        body.integrate(1.0);
+        assert_eq!(body.position(), V3::new([2.0, 0.0, 0.0]));
+    }
+
+    // This test verifies that applying an impulse at an offset generates the expected angular velocity.
+    // This verifies:
+    // * angular impulse = r × J
+    // * correct rotation axis
+    // * no unwanted coupling
+    #[test]
+    fn apply_impulse_at_generates_angular_velocity() {
+        let mut body = RigidBody::new(
+            Mass::new(1.0, V3::one()).unwrap(),
+            Material::default(),
+            V3::zero(),
+            Q::identity(),
+        );
+
+        // Impulse in +Y at +X → torque around +Z
+        body.apply_impulse_at(V3::new([0.0, 1.0, 0.0]), V3::new([1.0, 0.0, 0.0]));
+
+        assert_eq!(body.velocity(), V3::new([0.0, 1.0, 0.0]));
+        assert!(body.angular_vel.x2() > 0.0);
+        assert_float_eq!(body.angular_vel.x0(), 0.0);
+        assert_float_eq!(body.angular_vel.x1(), 0.0);
     }
 }

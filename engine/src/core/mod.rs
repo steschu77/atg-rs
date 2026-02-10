@@ -16,6 +16,7 @@ pub mod gl_text;
 pub mod gl_texture;
 pub mod input;
 pub mod player;
+pub mod sphere;
 pub mod terrain;
 pub mod world;
 
