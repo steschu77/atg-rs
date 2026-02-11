@@ -133,6 +133,13 @@ impl WheelPos {
             WheelPos::RL | WheelPos::RR => false,
         }
     }
+
+    pub fn is_rear(self) -> bool {
+        match self {
+            WheelPos::FL | WheelPos::FR => false,
+            WheelPos::RL | WheelPos::RR => true,
+        }
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -183,7 +190,14 @@ fn raycast_down(origin: V3, max_dist: f32) -> Option<f32> {
 }
 
 // ----------------------------------------------------------------------------
-fn apply_wheel_suspension(body: &mut RigidBody, wheel: &mut WheelData, steer_angle: f32, dt: f32) {
+fn apply_wheel_suspension(
+    body: &mut RigidBody,
+    wheel: &mut WheelData,
+    steer_angle: f32,
+    engine_impulse: f32,
+    brake: f32,
+    dt: f32,
+) {
     let wheel_pos = body.to_world(wheel.position);
     let ray_len = wheel.rest_length + wheel.radius;
 
@@ -191,26 +205,45 @@ fn apply_wheel_suspension(body: &mut RigidBody, wheel: &mut WheelData, steer_ang
         let compression = wheel.rest_length - (hit_dist - wheel.radius);
         let compression = compression.max(0.0);
 
-        let spring_force = compression * wheel.spring_k;
-
-        let compression_rate = (compression - wheel.compression) / dt;
-        let damper_force = compression_rate * wheel.damper_c;
-
-        let total_force = spring_force + damper_force;
         let up = body.rotation().rotate(V3::X1);
-        let force = up * total_force;
+        let r = wheel_pos - body.position();
+        let v = body.velocity_at(wheel_pos);
 
-        // Very basic ground collision response: if the wheel is penetrating the ground, push it up
-        // Real collision response comes later.
-        if wheel_pos.x1() < 0.0 {
-            let penetration = -wheel_pos.x1();
-            body.pos += V3::new([0.0, penetration, 0.0]);
+        let rel_vel = v.dot(up);
+
+        // Effective mass
+        let rn = r.cross(up);
+        let inv_mass = body.inv_mass();
+        let inv_inertia = body.inv_inertia_tensor;
+
+        let k = inv_mass + rn.dot(inv_inertia * rn);
+        if k <= 0.0 {
+            return;
         }
 
-        body.apply_force_at(force, wheel_pos);
+        let effective_mass = 1.0 / k;
 
-        let normal_force = total_force.max(0.0);
-        apply_wheel_tire_forces(body, wheel, wheel_pos, normal_force, steer_angle, dt);
+        // Baumgarte bias (stabilization)
+        let beta = 0.5;
+        let slop = 0.01;
+        let corrected = (compression - slop).max(0.0);
+        let bias = beta * corrected / dt;
+
+        // Solve velocity constraint
+        let lambda = -(rel_vel + bias) * effective_mass;
+        let lambda = lambda.max(0.0);
+
+        body.apply_impulse_at(up * lambda, wheel_pos);
+        let normal_impulse = lambda;
+        apply_wheel_tire_impulse(
+            body,
+            wheel,
+            wheel_pos,
+            normal_impulse,
+            steer_angle,
+            engine_impulse,
+            brake,
+        );
 
         wheel.compression = compression;
     } else {
@@ -219,32 +252,67 @@ fn apply_wheel_suspension(body: &mut RigidBody, wheel: &mut WheelData, steer_ang
 }
 
 // ----------------------------------------------------------------------------
-fn apply_wheel_tire_forces(
+fn apply_wheel_tire_impulse(
     body: &mut RigidBody,
     wheel: &WheelData,
     contact_point: V3,
-    normal_force: f32,
+    normal_impulse: f32,
     steer_angle: f32,
-    dt: f32,
+    engine_impulse: f32,
+    brake_input: f32,
 ) {
-    let (_forward, right) = if wheel.wheel.is_front() {
+    let (forward, right) = if wheel.wheel.is_front() {
         wheel_basis_steering(body, steer_angle)
     } else {
         wheel_basis_static(body)
     };
 
     let v = body.velocity_at(contact_point);
-    let v_side = v.dot(right);
+    let v_forward = v.dot(forward);
+    let v_right = v.dot(right);
 
-    let desired_impulse = -v_side * body.mass();
+    let r = contact_point - body.position();
+    let r_forward = r.cross(forward);
+    let r_right = r.cross(right);
 
-    // Coulomb friction clamp
-    let friction_coeff = 1.0;
-    let max_impulse = normal_force * friction_coeff * dt;
+    let inv_mass = body.inv_mass(); // scalar
+    let inv_inertia = body.inv_inertia_tensor; // M3x3 (world space)
 
-    let side_impulse = desired_impulse.clamp(-max_impulse, max_impulse);
+    let k_right = inv_mass + r_right.dot(inv_inertia * r_right);
+    let k_forward = inv_mass + r_forward.dot(inv_inertia * r_forward);
 
-    body.apply_impulse_at(right * side_impulse, contact_point);
+    if k_right > 0.0 {
+        let effective_mass = 1.0 / k_right;
+        let desired_impulse = -v_right * effective_mass;
+
+        let friction_coeff = 1.0;
+        let max_impulse = normal_impulse * friction_coeff;
+
+        let impulse = desired_impulse.clamp(-max_impulse, max_impulse);
+        body.apply_impulse_at(right * impulse, contact_point);
+    }
+
+    if k_forward > 0.0 {
+        let effective_mass = 1.0 / k_forward;
+
+        // Rear wheel drive example
+        let drive_impulse = if wheel.wheel.is_rear() {
+            engine_impulse
+        } else {
+            0.0
+        };
+
+        // Brake always tries to reduce forward velocity
+        let brake_impulse = -v_forward * effective_mass * brake_input;
+
+        let desired_impulse = drive_impulse + brake_impulse;
+
+        let friction_coeff = 1.0;
+        let max_impulse = normal_impulse * friction_coeff;
+
+        let impulse = desired_impulse.clamp(-max_impulse, max_impulse);
+        body.apply_impulse_at(forward * impulse, contact_point);
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -282,7 +350,7 @@ impl Car {
         let body = RigidBody::new(
             mass,
             material,
-            V3::new([0.0, 5.0 + geo.wheel_radius + 0.2, 0.0]),
+            V3::new([0.0, 2.0 + geo.wheel_radius + 0.2, 0.0]),
             Q::identity(),
         );
 
@@ -449,49 +517,45 @@ impl Component for Car {
         const TURN_SPEED: f32 = 1.5;
         let dt = ctx.dt_secs();
 
-        if ctx.state.is_pressed(GameKey::Accelerate) {
-            self.engine_force += 1000.0 * dt;
-            self.body.apply_force(V3::new([0.0, 0.0, 20000.0]));
-        }
-        if ctx.state.is_pressed(GameKey::Brake) {
-            self.brake_force += 1000.0 * dt;
-            self.body.apply_force(V3::new([0.0, 0.0, -20000.0]));
-        }
+        let engine_force = if ctx.state.is_pressed(GameKey::Accelerate) {
+            4000.0
+        } else {
+            0.0
+        };
+
+        let brake = if ctx.state.is_pressed(GameKey::Brake) {
+            1.0
+        } else {
+            0.0
+        };
+
         if ctx.state.is_pressed(GameKey::SteerLeft) {
-            self.chassis.steering_angle += TURN_SPEED * dt;
-        }
-        if ctx.state.is_pressed(GameKey::SteerRight) {
             self.chassis.steering_angle -= TURN_SPEED * dt;
         }
+        if ctx.state.is_pressed(GameKey::SteerRight) {
+            self.chassis.steering_angle += TURN_SPEED * dt;
+        }
+
+        let engine_impulse = engine_force * dt;
 
         self.body.apply_force(GRAVITY * self.body.mass());
+        self.body.integrate_velocities(dt);
 
-        apply_wheel_suspension(
-            &mut self.body,
-            &mut self.wheels[0],
-            self.chassis.steering_angle,
-            dt,
-        );
-        apply_wheel_suspension(
-            &mut self.body,
-            &mut self.wheels[1],
-            self.chassis.steering_angle,
-            dt,
-        );
-        apply_wheel_suspension(
-            &mut self.body,
-            &mut self.wheels[2],
-            self.chassis.steering_angle,
-            dt,
-        );
-        apply_wheel_suspension(
-            &mut self.body,
-            &mut self.wheels[3],
-            self.chassis.steering_angle,
-            dt,
-        );
+        const SOLVER_ITERS: usize = 8;
+        for _ in 0..SOLVER_ITERS {
+            for wheel in &mut self.wheels {
+                apply_wheel_suspension(
+                    &mut self.body,
+                    wheel,
+                    self.chassis.steering_angle,
+                    engine_impulse,
+                    brake,
+                    dt,
+                );
+            }
+        }
 
-        self.body.integrate(dt);
+        self.body.integrate_positions(dt);
 
         self.chassis.position = self.body.position();
         self.chassis.velocity = self.body.velocity();
@@ -510,7 +574,7 @@ impl Component for Car {
 
         for (i, wheel) in &mut self.wheels.iter().enumerate() {
             let steering_angle = if WheelPos::from(i).is_front() {
-                self.chassis.steering_angle
+                -self.chassis.steering_angle
             } else {
                 0.0
             };
