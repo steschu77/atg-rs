@@ -37,7 +37,7 @@ pub struct RigidBody {
     force: V3,
     torque: V3,
 
-    inv_inertia_tensor: M3x3,
+    pub inv_inertia_tensor: M3x3,
 }
 
 // ----------------------------------------------------------------------------
@@ -169,6 +169,9 @@ impl RigidBody {
     // ------------------------------------------------------------------------
     pub fn integrate(&mut self, dt: f32) {
         // Apply and clear accumulators
+
+        let RigidBody { force, torque, .. } = self.clone();
+
         let lin_accel = self.force * self.inv_mass();
 
         // This ignores gyroscopic terms (ω × Iω) for stability and simplicity.
@@ -187,12 +190,42 @@ impl RigidBody {
 
         self.inv_inertia_tensor = get_inv_inertia_tensor(self.rot, self.mass.inv_inertia());
 
-        //log::info!("RigidBody::integrate(dt: {dt}) → self: {self:?}");
+        log::info!(
+            "RigidBody::integrate(dt: {dt}) → RigidBody: , force: {}, torque: {}, pos: {}, rot: {}, linear_vel: {}, angular_vel: {}",
+            force,
+            torque,
+            self.pos,
+            self.rot,
+            self.linear_vel,
+            self.angular_vel,
+        );
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn integrate_velocities(&mut self, dt: f32) {
+        let lin_accel = self.force * self.inv_mass();
+        let ang_accel = self.inv_inertia_tensor * self.torque;
+
+        self.force = V3::zero();
+        self.torque = V3::zero();
+
+        self.linear_vel += lin_accel * dt;
+        self.angular_vel += ang_accel * dt;
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn integrate_positions(&mut self, dt: f32) {
+        self.pos += self.linear_vel * dt;
+
+        let dq = from_angular_velocity(self.angular_vel * dt);
+        self.rot = (self.rot * dq).norm();
+
+        self.inv_inertia_tensor = get_inv_inertia_tensor(self.rot, self.mass.inv_inertia());
     }
 
     // ------------------------------------------------------------------------
     pub fn log(&self) {
-        //log::info!("RigidBody: {self:?}");
+        log::info!("RigidBody: {self:?}");
     }
 }
 

@@ -2,6 +2,8 @@ use crate::v2d::float_eq::float_eq_rel;
 use crate::v2d::{m3x3::M3x3, v3::V3};
 
 // ----------------------------------------------------------------------------
+// Rotates a vector `v` around an arbitrary axis by a specified angle (in radians).
+// Uses Rodrigues' rotation formula.
 pub fn rotate_axis(v: V3, axis: V3, angle: f32) -> V3 {
     let (s, c) = angle.sin_cos();
     v * c + axis.cross(v) * s + axis * axis.dot(v) * (1.0 - c)

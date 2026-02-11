@@ -1,7 +1,9 @@
 // Quaternion
+use std::fmt;
+use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+
 use super::float_eq::float_eq_rel;
 use super::{m3x3::M3x3, m4x4::M4x4, v3::V3};
-use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 // ----------------------------------------------------------------------------
 #[derive(Debug, Copy, Clone)]
@@ -13,6 +15,20 @@ pub struct Q {
 impl Default for Q {
     fn default() -> Self {
         Q::identity()
+    }
+}
+
+// ----------------------------------------------------------------------------
+impl fmt::Display for Q {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Q({:.2}, {:.2}, {:.2}, {:.2})",
+            self.x0(),
+            self.x1(),
+            self.x2(),
+            self.x3()
+        )
     }
 }
 
