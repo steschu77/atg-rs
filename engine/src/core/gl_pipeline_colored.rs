@@ -112,7 +112,7 @@ pub fn cylinder(sides: usize, radius: f32, height: f32) -> (Vec<Vertex>, Vec<u32
     verts.push(Vertex { pos: -h, n: n1 });
 
     // indices for the cylinder sides
-    let mut indices = Vec::with_capacity(sides * 6);
+    let mut indices = Vec::with_capacity(sides * 12);
     for i in 0..sides {
         let i0 = (i * 2) as u32;
         indices.extend_from_slice(&[i0, i0 + 1, i0 + 2, i0 + 2, i0 + 1, i0 + 3]);
@@ -121,7 +121,7 @@ pub fn cylinder(sides: usize, radius: f32, height: f32) -> (Vec<Vertex>, Vec<u32
     // indices for the top and bottom caps
     let rim = circle.len() as u32 * 2;
     let center = circle.len() as u32 * 4;
-    for i in 0..sides {
+    for i in 0..sides - 1 {
         let rim0 = rim + (i as u32) * 2;
         let rim1 = rim0 + 2;
         indices.extend_from_slice(&[center, rim0, rim1, center + 1, rim1 + 1, rim0 + 1]);
