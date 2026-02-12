@@ -2,7 +2,7 @@ use crate::core::component::{Component, Context};
 use crate::core::game_input::GameKey;
 use crate::core::gl_renderer::{RenderContext, RenderObject, Transform};
 use crate::error::Result;
-use crate::v2d::{affine3x3, m3x3::M3x3, q::Q, r2::R2, v3::V3, v4::V4};
+use crate::v2d::{affine3x3, m3x3::M3x3, q::Q, v3::V3, v4::V4};
 use crate::x2d::{self, mass::Mass, rigid_body::RigidBody};
 
 // ----------------------------------------------------------------------------
@@ -23,10 +23,6 @@ pub const GRAVITY: V3 = V3::new([0.0, -9.81, 0.0]);
 // ----------------------------------------------------------------------------
 #[derive(Debug, Clone, Default)]
 pub struct ChassisData {
-    pub position: V3,
-    pub velocity: V3,
-    pub rotation: R2,
-    pub angular_velocity: V3,
     pub steering_angle: f32,
 }
 
@@ -430,7 +426,6 @@ impl Car {
                 },
             ],
             chassis: ChassisData {
-                position: V3::new([0.0, 5.0 + geo.wheel_radius + 0.2, 0.0]),
                 ..Default::default()
             },
             wheels: [
@@ -470,17 +465,16 @@ impl Car {
     }
 
     pub fn position(&self) -> V4 {
-        let pos = self.chassis.position;
-        V4::new([pos.x0(), pos.x1(), pos.x2(), 1.0])
+        V4::from_v3(self.body.position(), 1.0)
     }
 
     pub fn update_debug_arrows(&mut self, context: &mut RenderContext) -> Result<()> {
         use crate::core::gl_pipeline_colored::arrow;
 
         for i in 0..2 {
-            let wheel_pos = self.chassis.position + self.wheels[i].position;
+            let wheel_pos = self.body.position() + self.wheels[i].position;
             let (forward, _) = wheel_basis_steering(&self.body, self.chassis.steering_angle);
-            let forward = V3::new([forward.x0(), 0.0, forward.x1()]);
+            let forward = V3::new([forward.x0(), 0.0, forward.x2()]);
             let arrow_verts = arrow(wheel_pos, wheel_pos + 1.5 * forward)?;
             context.update_colored_mesh(self.debug_arrows[i].mesh_id, &arrow_verts, &[])?;
         }
@@ -489,15 +483,9 @@ impl Car {
     }
 
     pub fn transform(&self) -> (V4, V4) {
-        let y_axis = self.chassis.rotation.y_axis();
-        let forward = V4::new([y_axis.x0(), 0.0, y_axis.x1(), 0.0]);
-        let position = V4::new([
-            self.chassis.position.x0(),
-            self.chassis.position.x1(),
-            self.chassis.position.x2(),
-            1.0,
-        ]);
-        (forward, position)
+        let forward = self.body.rotation().rotate(V3::X2);
+        let position = self.body.position();
+        (V4::from_v3(forward, 0.0), V4::from_v3(position, 1.0))
     }
 }
 
@@ -562,16 +550,7 @@ impl Component for Car {
             wheel.spin_angle += wheel.angular_velocity * dt;
         }
 
-        self.chassis.position = self.body.position();
-        self.chassis.velocity = self.body.velocity();
-
-        self.objects[0].transform.position = V4::new([
-            self.chassis.position.x0(),
-            self.chassis.position.x1(),
-            self.chassis.position.x2(),
-            1.0,
-        ]);
-
+        self.objects[0].transform.position = V4::from_v3(self.body.position(), 1.0);
         self.objects[0].transform.rotation = self.body.rotation().into();
 
         let chassis_rot = self.body.rotation();
@@ -585,12 +564,11 @@ impl Component for Car {
             };
 
             let wheel_pos = wheel.position + V3::new([0.0, wheel.compression, 0.0]);
-            let wheel_pos = self.chassis.position + chassis_transform * wheel_pos;
+            let wheel_pos = self.body.position() + chassis_transform * wheel_pos;
             let wheel_rot =
                 affine3x3::rotate_x1(steering_angle) * affine3x3::rotate_x0(-wheel.spin_angle);
             let wheel_rot = chassis_rot * Q::from_mat3(&wheel_rot);
-            self.objects[1 + i].transform.position =
-                V4::new([wheel_pos.x0(), wheel_pos.x1(), wheel_pos.x2(), 1.0]);
+            self.objects[1 + i].transform.position = V4::from_v3(wheel_pos, 1.0);
             self.objects[1 + i].transform.rotation = wheel_rot.into();
         }
 
