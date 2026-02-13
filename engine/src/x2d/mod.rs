@@ -1,3 +1,4 @@
+pub mod constraint;
 pub mod mass;
 pub mod rigid_body;
 

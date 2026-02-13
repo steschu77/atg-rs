@@ -74,13 +74,8 @@ impl RigidBody {
     }
 
     // ------------------------------------------------------------------------
-    pub fn inertia(&self) -> V3 {
-        self.mass.inertia()
-    }
-
-    // ------------------------------------------------------------------------
-    pub fn inv_inertia(&self) -> V3 {
-        self.mass.inv_inertia()
+    pub fn inv_inertia(&self) -> M3x3 {
+        self.inv_inertia_tensor
     }
 
     // ------------------------------------------------------------------------
@@ -146,14 +141,14 @@ impl RigidBody {
     }
 
     // ------------------------------------------------------------------------
-    pub fn apply_impulse(&mut self, impulse: V3) {
-        log::info!("RigidBody::apply_impulse(impulse: {impulse})");
+    pub fn apply_impulse(&mut self, impulse: V3, reason: &str) {
+        log::info!("RigidBody::impulse[{reason}](impulse: {impulse})");
         self.linear_vel += impulse * self.inv_mass();
     }
 
     // ------------------------------------------------------------------------
-    pub fn apply_impulse_at(&mut self, impulse: V3, world_pt: V3) {
-        log::info!("RigidBody::apply_impulse_at(impulse: {impulse}, world_pt: {world_pt})");
+    pub fn apply_impulse_at(&mut self, impulse: V3, world_pt: V3, reason: &str) {
+        log::info!("RigidBody::impulse[{reason}](impulse: {impulse}, pt: {world_pt})");
 
         // Linear velocity
         self.linear_vel += impulse * self.inv_mass();
@@ -203,6 +198,8 @@ impl RigidBody {
 
     // ------------------------------------------------------------------------
     pub fn integrate_velocities(&mut self, dt: f32) {
+        let RigidBody { force, torque, .. } = self.clone();
+
         let lin_accel = self.force * self.inv_mass();
         let ang_accel = self.inv_inertia_tensor * self.torque;
 
@@ -211,6 +208,14 @@ impl RigidBody {
 
         self.linear_vel += lin_accel * dt;
         self.angular_vel += ang_accel * dt;
+
+        log::info!(
+            "RigidBody::integrate_vel(dt: {dt}) → force: {}, torque: {}, linear_vel: {}, angular_vel: {}",
+            force,
+            torque,
+            self.linear_vel,
+            self.angular_vel,
+        );
     }
 
     // ------------------------------------------------------------------------
@@ -221,6 +226,12 @@ impl RigidBody {
         self.rot = (self.rot * dq).norm();
 
         self.inv_inertia_tensor = get_inv_inertia_tensor(self.rot, self.mass.inv_inertia());
+
+        log::info!(
+            "RigidBody::integrate_pos(dt: {dt}) → pos: {}, rot: {}",
+            self.pos,
+            self.rot,
+        );
     }
 
     // ------------------------------------------------------------------------
@@ -395,7 +406,7 @@ mod tests {
         );
 
         let impulse = V3::new([4.0, 0.0, 0.0]); // Δv = 2
-        body.apply_impulse(impulse);
+        body.apply_impulse(impulse, "test");
 
         assert_eq!(body.position(), V3::zero());
         assert_eq!(body.velocity(), V3::new([2.0, 0.0, 0.0]));
@@ -420,7 +431,7 @@ mod tests {
         );
 
         // Impulse in +Y at +X → torque around +Z
-        body.apply_impulse_at(V3::new([0.0, 1.0, 0.0]), V3::new([1.0, 0.0, 0.0]));
+        body.apply_impulse_at(V3::new([0.0, 1.0, 0.0]), V3::new([1.0, 0.0, 0.0]), "test");
 
         assert_eq!(body.velocity(), V3::new([0.0, 1.0, 0.0]));
         assert!(body.angular_vel.x2() > 0.0);

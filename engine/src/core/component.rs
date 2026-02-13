@@ -21,4 +21,6 @@ impl<'a> Context<'a> {
 // ----------------------------------------------------------------------------
 pub trait Component {
     fn update(&mut self, ctx: &Context) -> Result<()>;
+    fn solve_constraints(&mut self) {}
+    fn integrate_positions(&mut self, _dt: f32) {}
 }

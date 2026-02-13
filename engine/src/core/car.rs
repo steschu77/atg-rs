@@ -224,7 +224,7 @@ fn apply_wheel_suspension(
         let lambda = -(rel_vel + bias) * effective_mass;
         let lambda = lambda.max(0.0);
 
-        body.apply_impulse_at(up * lambda, wheel_pos);
+        body.apply_impulse_at(up * lambda, wheel_pos, "wheel_suspension");
         let normal_impulse = lambda;
         apply_wheel_tire_impulse(
             body,
@@ -282,7 +282,7 @@ fn apply_wheel_tire_impulse(
         let desired_impulse = -v_right * effective_mass;
 
         let impulse = desired_impulse.clamp(-max_impulse, max_impulse);
-        body.apply_impulse_at(right * impulse, contact_point);
+        body.apply_impulse_at(right * impulse, contact_point, "wheel_tire_lateral");
     }
 
     if k_forward > 0.0 {
@@ -294,7 +294,7 @@ fn apply_wheel_tire_impulse(
         }
 
         let impulse = desired_impulse.clamp(-max_impulse, max_impulse);
-        body.apply_impulse_at(forward * impulse, contact_point);
+        body.apply_impulse_at(forward * impulse, contact_point, "wheel_tire_longitudinal");
 
         // Apply opposite torque to wheel
         wheel.angular_velocity += (-impulse * wheel.radius) / wheel.inertia;
@@ -544,6 +544,10 @@ impl Component for Car {
             }
         }
 
+        Ok(())
+    }
+
+    fn integrate_positions(&mut self, dt: f32) {
         self.body.integrate_positions(dt);
 
         for wheel in &mut self.wheels {
@@ -571,7 +575,5 @@ impl Component for Car {
             self.objects[1 + i].transform.position = V4::from_v3(wheel_pos, 1.0);
             self.objects[1 + i].transform.rotation = wheel_rot.into();
         }
-
-        Ok(())
     }
 }
