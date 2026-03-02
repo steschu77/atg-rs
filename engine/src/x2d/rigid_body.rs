@@ -162,6 +162,12 @@ impl RigidBody {
     }
 
     // ------------------------------------------------------------------------
+    pub fn apply_angular_impulse(&mut self, impulse: V3, reason: &str) {
+        log::info!("RigidBody::angular_impulse[{reason}](impulse: {impulse})");
+        self.angular_vel += self.inv_inertia() * impulse;
+    }
+
+    // ------------------------------------------------------------------------
     pub fn integrate(&mut self, dt: f32) {
         // Apply and clear accumulators
 
