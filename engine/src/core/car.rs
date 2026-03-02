@@ -148,15 +148,15 @@ impl WheelPos {
 
 // ----------------------------------------------------------------------------
 fn wheel_basis_static(body: &RigidBody) -> (V3, V3) {
-    let forward = body.rotation().rotate(V3::X2);
-    let right = body.rotation().rotate(V3::X0);
+    let forward = body.orientation().rotate(V3::X2);
+    let right = body.orientation().rotate(V3::X0);
     (forward, right)
 }
 
 // ----------------------------------------------------------------------------
 fn wheel_basis_steering(body: &RigidBody, steer_angle: f32) -> (V3, V3) {
-    let car_forward = body.rotation().rotate(V3::X2);
-    let car_up = body.rotation().rotate(V3::X1);
+    let car_forward = body.orientation().rotate(V3::X2);
+    let car_up = body.orientation().rotate(V3::X1);
 
     let steer_q = Q::from_axis_angle(car_up, steer_angle);
     let forward = steer_q.rotate(car_forward).norm();
@@ -196,7 +196,7 @@ fn apply_wheel_suspension(
         let compression = wheel.rest_length - (hit_dist - wheel.radius);
         let compression = compression.max(0.0);
 
-        let up = body.rotation().rotate(V3::X1);
+        let up = body.orientation().rotate(V3::X1);
         let r = wheel_pos - body.position();
         let v = body.velocity_at(wheel_pos);
 
@@ -205,7 +205,7 @@ fn apply_wheel_suspension(
         // Effective mass
         let rn = r.cross(up);
         let inv_mass = body.inv_mass();
-        let inv_inertia = body.inv_inertia_tensor;
+        let inv_inertia = body.inv_inertia();
 
         let k = inv_mass + rn.dot(inv_inertia * rn);
         if k <= 0.0 {
@@ -272,7 +272,7 @@ fn apply_wheel_tire_impulse(
     let r_right = r.cross(right);
 
     let inv_mass = body.inv_mass(); // scalar
-    let inv_inertia = body.inv_inertia_tensor; // M3x3 (world space)
+    let inv_inertia = body.inv_inertia(); // M3x3 (world space)
 
     let k_right = inv_mass + r_right.dot(inv_inertia * r_right);
     let k_forward = inv_mass + r_forward.dot(inv_inertia * r_forward);
@@ -483,7 +483,7 @@ impl Car {
     }
 
     pub fn transform(&self) -> (V4, V4) {
-        let forward = self.body.rotation().rotate(V3::X2);
+        let forward = self.body.orientation().rotate(V3::X2);
         let position = self.body.position();
         (V4::from_v3(forward, 0.0), V4::from_v3(position, 1.0))
     }
@@ -515,7 +515,7 @@ impl Component for Car {
         }
 
         self.body.apply_force(GRAVITY * self.body.mass());
-        self.body.integrate_velocities(dt);
+        self.body.integrate_forces(dt);
 
         for wheel in &mut self.wheels {
             if !wheel.wheel.is_front() {
@@ -548,17 +548,17 @@ impl Component for Car {
     }
 
     fn integrate_positions(&mut self, dt: f32) {
-        self.body.integrate_positions(dt);
+        self.body.integrate_velocities(dt);
 
         for wheel in &mut self.wheels {
             wheel.spin_angle += wheel.angular_velocity * dt;
         }
 
         self.objects[0].transform.position = V4::from_v3(self.body.position(), 1.0);
-        self.objects[0].transform.rotation = self.body.rotation().into();
+        self.objects[0].transform.rotation = self.body.orientation().into();
 
-        let chassis_rot = self.body.rotation();
-        let chassis_transform = self.body.rotation().as_mat3x3();
+        let chassis_rot = self.body.orientation();
+        let chassis_transform = self.body.orientation().as_mat3x3();
 
         for (i, wheel) in &mut self.wheels.iter().enumerate() {
             let steering_angle = if WheelPos::from(i).is_front() {
