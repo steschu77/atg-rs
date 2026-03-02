@@ -82,7 +82,7 @@ impl PhysicsSphere {
 
     /// Get the current velocity of the sphere
     pub fn velocity(&self) -> V3 {
-        self.body.velocity()
+        self.body.linear_velocity()
     }
 
     pub fn transform(&self) -> (V4, V4) {
@@ -116,7 +116,7 @@ impl Component for PhysicsSphere {
 
         // Air resistance (simple linear drag)
         let drag_coefficient = 0.1;
-        let velocity = self.body.velocity();
+        let velocity = self.body.linear_velocity();
         let drag_force = velocity * -drag_coefficient;
         self.body.apply_force(drag_force);
 
@@ -131,8 +131,8 @@ impl Component for PhysicsSphere {
 
         if penetration > 0.0 {
             // --- positional correction ---
-            let corrected_pos = pos.with_x1(pos.x1() + penetration);
-            self.body.pos = corrected_pos;
+            // let corrected_pos = pos.with_x1(pos.x1() + penetration);
+            // todo: self.body.pos = corrected_pos;
 
             let normal = V3::X1;
             let contact = self.body.position() - normal * self.radius;
@@ -177,9 +177,9 @@ impl Component for PhysicsSphere {
     }
 
     fn integrate_positions(&mut self, dt: f32) {
-        self.body.integrate_positions(dt);
+        self.body.integrate_velocities(dt);
 
         self.object.transform.position = V4::from_v3(self.body.position(), 1.0);
-        self.object.transform.rotation = self.body.rotation().into();
+        self.object.transform.rotation = self.body.orientation().into();
     }
 }

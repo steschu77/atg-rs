@@ -12,11 +12,17 @@ use crate::x2d::{Material, mass::Mass};
 
 // ----------------------------------------------------------------------------
 pub fn from_angular_velocity(omega_dt: V3) -> Q {
-    let angle = omega_dt.length();
-    if angle < 1.0e-6 {
-        // Very small rotation → identity
-        Q::identity()
+    let angle2 = omega_dt.length2();
+    if angle2 < 1.0e-12 {
+        Q::new([
+            0.5 * omega_dt.x0(),
+            0.5 * omega_dt.x1(),
+            0.5 * omega_dt.x2(),
+            1.0,
+        ])
+        .norm()
     } else {
+        let angle = angle2.sqrt();
         let axis = omega_dt * (1.0 / angle);
         Q::from_axis_angle(axis, angle)
     }
@@ -28,22 +34,16 @@ pub struct RigidBody {
     mass: Mass,
     material: Material,
 
-    pub pos: V3,
-    rot: Q,
+    position: V3,
+    orientation: Q,
 
     linear_vel: V3,
-    pub angular_vel: V3,
+    angular_vel: V3,
 
-    force: V3,
-    torque: V3,
+    force_accu: V3,
+    torque_accu: V3,
 
-    pub inv_inertia_tensor: M3x3,
-}
-
-// ----------------------------------------------------------------------------
-fn get_inv_inertia_tensor(rot: Q, inv_inertia_body: V3) -> M3x3 {
-    let rot_mat = rot.as_mat3x3();
-    rot_mat * M3x3::diag(inv_inertia_body) * rot_mat.transpose()
+    inv_inertia_world: M3x3,
 }
 
 // ----------------------------------------------------------------------------
@@ -53,13 +53,13 @@ impl RigidBody {
         Self {
             mass,
             material,
-            pos,
-            rot,
+            position: pos,
+            orientation: rot,
             linear_vel: V3::zero(),
             angular_vel: V3::zero(),
-            force: V3::zero(),
-            torque: V3::zero(),
-            inv_inertia_tensor: get_inv_inertia_tensor(rot, mass.inv_inertia()),
+            force_accu: V3::zero(),
+            torque_accu: V3::zero(),
+            inv_inertia_world: Self::update_inertia_world(rot, mass.inv_inertia()),
         }
     }
 
@@ -75,7 +75,7 @@ impl RigidBody {
 
     // ------------------------------------------------------------------------
     pub fn inv_inertia(&self) -> M3x3 {
-        self.inv_inertia_tensor
+        self.inv_inertia_world
     }
 
     // ------------------------------------------------------------------------
@@ -90,17 +90,17 @@ impl RigidBody {
 
     // ------------------------------------------------------------------------
     pub fn position(&self) -> V3 {
-        self.pos
+        self.position
     }
 
     // ------------------------------------------------------------------------
-    pub fn velocity(&self) -> V3 {
+    pub fn orientation(&self) -> Q {
+        self.orientation
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn linear_velocity(&self) -> V3 {
         self.linear_vel
-    }
-
-    // ------------------------------------------------------------------------
-    pub fn rotation(&self) -> Q {
-        self.rot
     }
 
     // ------------------------------------------------------------------------
@@ -110,34 +110,34 @@ impl RigidBody {
 
     // ------------------------------------------------------------------------
     pub fn to_local(&self, world: V3) -> V3 {
-        let r = world - self.pos;
-        self.rot.inv_rotate(r)
+        let r = world - self.position;
+        self.orientation.inv_rotate(r)
     }
 
     // ------------------------------------------------------------------------
     pub fn to_world(&self, local: V3) -> V3 {
-        self.rot.rotate(local) + self.pos
+        self.orientation.rotate(local) + self.position
     }
 
     // ------------------------------------------------------------------------
     pub fn velocity_at(&self, world_pt: V3) -> V3 {
-        let r = world_pt - self.pos;
+        let r = world_pt - self.position;
         self.linear_vel + self.angular_vel.cross(r)
     }
 
     // ------------------------------------------------------------------------
     pub fn apply_force(&mut self, force: V3) {
         log::info!("RigidBody::apply_force(force: {force})");
-        self.force += force;
+        self.force_accu += force;
     }
 
     // ------------------------------------------------------------------------
     pub fn apply_force_at(&mut self, force: V3, world_pt: V3) {
         log::info!("RigidBody::apply_force_at(force: {force}, world_pt: {world_pt})");
-        self.force += force;
+        self.force_accu += force;
 
-        let r = world_pt - self.pos;
-        self.torque += r.cross(force);
+        let r = world_pt - self.position;
+        self.torque_accu += r.cross(force);
     }
 
     // ------------------------------------------------------------------------
@@ -154,11 +154,10 @@ impl RigidBody {
         self.linear_vel += impulse * self.inv_mass();
 
         // Angular velocity
-        let r = world_pt - self.pos;
+        let r = world_pt - self.position;
         let angular_impulse = r.cross(impulse);
 
-        let inv_inertia_world = get_inv_inertia_tensor(self.rot, self.mass.inv_inertia());
-        self.angular_vel += inv_inertia_world * angular_impulse;
+        self.angular_vel += self.inv_inertia_world * angular_impulse;
     }
 
     // ------------------------------------------------------------------------
@@ -168,81 +167,66 @@ impl RigidBody {
     }
 
     // ------------------------------------------------------------------------
-    pub fn integrate(&mut self, dt: f32) {
-        // Apply and clear accumulators
-
-        let RigidBody { force, torque, .. } = self.clone();
-
-        let lin_accel = self.force * self.inv_mass();
-
-        // This ignores gyroscopic terms (ω × Iω) for stability and simplicity.
-        let ang_accel = self.inv_inertia_tensor * self.torque;
-
-        self.force = V3::zero();
-        self.torque = V3::zero();
+    pub fn integrate_forces(&mut self, dt: f32) {
+        let lin_accel = self.force_accu * self.inv_mass();
+        let ang_accel = self.inv_inertia_world * self.torque_accu;
 
         self.linear_vel += lin_accel * dt;
         self.angular_vel += ang_accel * dt;
 
-        self.pos += self.linear_vel * dt;
-
-        let dq = from_angular_velocity(self.angular_vel * dt);
-        self.rot = (self.rot * dq).norm();
-
-        self.inv_inertia_tensor = get_inv_inertia_tensor(self.rot, self.mass.inv_inertia());
-
         log::info!(
-            "RigidBody::integrate(dt: {dt}) → RigidBody: , force: {}, torque: {}, pos: {}, rot: {}, linear_vel: {}, angular_vel: {}",
-            force,
-            torque,
-            self.pos,
-            self.rot,
+            "RigidBody::integrate_forces(dt: {dt}) → force: {}, torque: {}, linear_vel: {}, angular_vel: {}",
+            self.force_accu,
+            self.torque_accu,
             self.linear_vel,
             self.angular_vel,
         );
+
+        self.force_accu = V3::zero();
+        self.torque_accu = V3::zero();
     }
 
     // ------------------------------------------------------------------------
     pub fn integrate_velocities(&mut self, dt: f32) {
-        let RigidBody { force, torque, .. } = self.clone();
+        self.position += self.linear_vel * dt;
 
-        let lin_accel = self.force * self.inv_mass();
-        let ang_accel = self.inv_inertia_tensor * self.torque;
+        let dq = from_angular_velocity(self.angular_vel * dt);
+        self.orientation = (dq * self.orientation).norm();
 
-        self.force = V3::zero();
-        self.torque = V3::zero();
-
-        self.linear_vel += lin_accel * dt;
-        self.angular_vel += ang_accel * dt;
+        self.inv_inertia_world =
+            Self::update_inertia_world(self.orientation, self.mass.inv_inertia());
 
         log::info!(
-            "RigidBody::integrate_vel(dt: {dt}) → force: {}, torque: {}, linear_vel: {}, angular_vel: {}",
-            force,
-            torque,
-            self.linear_vel,
-            self.angular_vel,
+            "RigidBody::integrate_vel(dt: {dt}) → pos: {}, rot: {}",
+            self.position,
+            self.orientation,
         );
     }
 
     // ------------------------------------------------------------------------
-    pub fn integrate_positions(&mut self, dt: f32) {
-        self.pos += self.linear_vel * dt;
+    pub fn angular_momentum(&self) -> V3 {
+        self.inv_inertia_world.inverse() * self.angular_vel
+    }
 
-        let dq = from_angular_velocity(self.angular_vel * dt);
-        self.rot = (self.rot * dq).norm();
+    // ------------------------------------------------------------------------
+    pub fn kinetic_energy(&self) -> f32 {
+        let linear = 0.5 * self.mass() * self.linear_vel.length2();
 
-        self.inv_inertia_tensor = get_inv_inertia_tensor(self.rot, self.mass.inv_inertia());
+        let intertia = self.inv_inertia_world.inverse();
+        let rotational = 0.5 * self.angular_vel.dot(intertia * self.angular_vel);
 
-        log::info!(
-            "RigidBody::integrate_pos(dt: {dt}) → pos: {}, rot: {}",
-            self.pos,
-            self.rot,
-        );
+        linear + rotational
     }
 
     // ------------------------------------------------------------------------
     pub fn log(&self) {
         log::info!("RigidBody: {self:?}");
+    }
+
+    // ------------------------------------------------------------------------
+    fn update_inertia_world(orientation: Q, inv_inertia_body: V3) -> M3x3 {
+        let r = orientation.as_mat3x3();
+        r * M3x3::diag(inv_inertia_body) * r.transpose()
     }
 }
 
@@ -261,11 +245,11 @@ mod tests {
             Q::identity(),
         );
 
-        body.integrate(1.0);
+        body.integrate_velocities(1.0);
 
         assert_eq!(body.position(), V3::zero());
-        assert_eq!(body.velocity(), V3::zero());
-        assert_eq!(body.angular_vel, V3::zero());
+        assert_eq!(body.linear_velocity(), V3::zero());
+        assert_eq!(body.angular_velocity(), V3::zero());
     }
 
     #[test]
@@ -280,16 +264,18 @@ mod tests {
         let force = V3::new([4.0, 0.0, 0.0]); // a = 2
         body.apply_force_at(force, V3::zero());
 
-        body.integrate(1.0);
-        assert_eq!(body.velocity(), V3::new([2.0, 0.0, 0.0]));
+        body.integrate_forces(1.0);
+        body.integrate_velocities(1.0);
+        assert_eq!(body.linear_velocity(), V3::new([2.0, 0.0, 0.0]));
         assert_eq!(body.position(), V3::new([2.0, 0.0, 0.0]));
-        assert_eq!(body.angular_vel, V3::zero());
+        assert_eq!(body.angular_velocity(), V3::zero());
 
         // accumulators should be cleared, so no more acceleration
-        body.integrate(1.0);
-        assert_eq!(body.velocity(), V3::new([2.0, 0.0, 0.0]));
+        body.integrate_forces(1.0);
+        body.integrate_velocities(1.0);
+        assert_eq!(body.linear_velocity(), V3::new([2.0, 0.0, 0.0]));
         assert_eq!(body.position(), V3::new([4.0, 0.0, 0.0]));
-        assert_eq!(body.angular_vel, V3::zero());
+        assert_eq!(body.angular_velocity(), V3::zero());
     }
 
     #[test]
@@ -304,9 +290,10 @@ mod tests {
         // Move and rotate upwards around Z axis
         body.apply_force_at(V3::new([0.0, 1.0, 0.0]), V3::new([1.0, 0.0, 0.0]));
 
-        body.integrate(1.0);
+        body.integrate_forces(1.0);
+        body.integrate_velocities(1.0);
         assert!(body.position().x1() > 0.0);
-        assert!(body.angular_vel.x2() > 0.0);
+        assert!(body.angular_velocity().x2() > 0.0);
     }
 
     #[test]
@@ -388,7 +375,8 @@ mod tests {
         // Angular velocity: +90°/s around Z
         body.angular_vel = V3::new([0.0, 0.0, std::f32::consts::FRAC_PI_2]);
 
-        body.integrate(1.0);
+        body.integrate_forces(1.0);
+        body.integrate_velocities(1.0);
 
         // Rotate local X axis into world space
         let x_world = body.to_world(V3::X0);
@@ -415,10 +403,11 @@ mod tests {
         body.apply_impulse(impulse, "test");
 
         assert_eq!(body.position(), V3::zero());
-        assert_eq!(body.velocity(), V3::new([2.0, 0.0, 0.0]));
+        assert_eq!(body.linear_velocity(), V3::new([2.0, 0.0, 0.0]));
         assert_eq!(body.angular_velocity(), V3::zero());
 
-        body.integrate(1.0);
+        body.integrate_forces(1.0);
+        body.integrate_velocities(1.0);
         assert_eq!(body.position(), V3::new([2.0, 0.0, 0.0]));
     }
 
@@ -439,9 +428,163 @@ mod tests {
         // Impulse in +Y at +X → torque around +Z
         body.apply_impulse_at(V3::new([0.0, 1.0, 0.0]), V3::new([1.0, 0.0, 0.0]), "test");
 
-        assert_eq!(body.velocity(), V3::new([0.0, 1.0, 0.0]));
-        assert!(body.angular_vel.x2() > 0.0);
-        assert_float_eq!(body.angular_vel.x0(), 0.0);
-        assert_float_eq!(body.angular_vel.x1(), 0.0);
+        assert_eq!(body.linear_velocity(), V3::new([0.0, 1.0, 0.0]));
+        assert!(body.angular_velocity().x2() > 0.0);
+        assert_float_eq!(body.angular_velocity().x0(), 0.0);
+        assert_float_eq!(body.angular_velocity().x1(), 0.0);
+    }
+
+    #[test]
+    // If this fails → cross product or inertia is wrong.
+    fn equal_opposite_impulses_pure_rotation() {
+        let mut body = RigidBody::new(
+            Mass::new(1.0, V3::one()).unwrap(),
+            Material::default(),
+            V3::zero(),
+            Q::identity(),
+        );
+
+        let r = V3::new([1.0, 0.0, 0.0]);
+        let j = V3::new([0.0, 1.0, 0.0]);
+
+        body.apply_impulse_at(j, r, "test");
+        body.apply_impulse_at(-j, -r, "test");
+
+        // Linear must cancel
+        assert_float_eq!(body.linear_velocity().length(), 0.0);
+
+        // Angular must be non-zero
+        assert!(body.angular_velocity().length() > 0.0);
+    }
+
+    #[test]
+    // No forces → momentum must stay constant.
+    // If this drifts → integration is wrong.
+    fn linear_momentum_conserved() {
+        let mut body = RigidBody::new(
+            Mass::new(2.0, V3::one()).unwrap(),
+            Material::default(),
+            V3::zero(),
+            Q::identity(),
+        );
+
+        body.apply_impulse(V3::new([4.0, 3.0, 2.0]), "test");
+
+        let initial = body.linear_velocity();
+
+        for _ in 0..1000 {
+            body.integrate_forces(0.01);
+            body.integrate_velocities(0.01);
+        }
+
+        assert_float_eq!(body.linear_velocity().x0(), initial.x0());
+        assert_float_eq!(body.linear_velocity().x1(), initial.x1());
+        assert_float_eq!(body.linear_velocity().x2(), initial.x2());
+    }
+
+    #[test]
+    // If symmetry breaks → matrix multiplication issue.
+    fn inertia_tensor_stays_symmetric() {
+        let mut body = RigidBody::new(
+            Mass::new(1.0, V3::new([2.0, 3.0, 4.0])).unwrap(),
+            Material::default(),
+            V3::zero(),
+            Q::identity(),
+        );
+
+        body.angular_vel = V3::new([1.0, 2.0, 3.0]);
+
+        for _ in 0..1000 {
+            body.integrate_velocities(0.01);
+        }
+
+        let inv_inertia = body.inv_inertia();
+        assert_float_eq!(inv_inertia.x01(), inv_inertia.x10());
+        assert_float_eq!(inv_inertia.x02(), inv_inertia.x20());
+        assert_float_eq!(inv_inertia.x12(), inv_inertia.x21());
+    }
+
+    #[test]
+    fn asymmetric_body_free_spin_conserves_angular_momentum() {
+        let mut body = RigidBody::new(
+            Mass::new(1.0, V3::new([2.0, 2.1, 2.0])).unwrap(),
+            Material::default(),
+            V3::zero(),
+            Q::identity(),
+        );
+
+        body.apply_angular_impulse(V3::new([0.3, 0.7, 1.1]), "test");
+
+        let initial_angular_momentum = body.angular_momentum();
+
+        for _ in 0..5000 {
+            body.integrate_velocities(0.001);
+        }
+
+        let final_angular_momentum = body.angular_momentum();
+        let diff = (initial_angular_momentum - final_angular_momentum).length();
+        assert!(diff < 1e-1, "Angular momentum not conserved: diff = {diff}");
+    }
+
+    #[test]
+    fn conserve_kinetic_energy() {
+        let mut body = RigidBody::new(
+            Mass::new(2.0, V3::one()).unwrap(),
+            Material::default(),
+            V3::zero(),
+            Q::identity(),
+        );
+
+        body.apply_angular_impulse(V3::new([0.3, 0.7, 1.1]), "test");
+        body.apply_impulse(V3::new([4.0, 0.0, 0.0]), "test");
+
+        let initial = body.kinetic_energy();
+
+        for _ in 0..10_000 {
+            body.integrate_velocities(0.001);
+        }
+
+        let final_energy = body.kinetic_energy();
+
+        assert!((final_energy - initial).abs() < 1e-6);
+    }
+
+    #[test]
+    fn stress_free_spin_stability() {
+        let mut body = RigidBody::new(
+            Mass::new(1.0, V3::new([2.0, 3.0, 4.0])).unwrap(),
+            Material::default(),
+            V3::zero(),
+            Q::identity(),
+        );
+
+        body.angular_vel = V3::new([1.3, -2.1, 0.7]);
+
+        let dt = 0.001;
+        let steps = 200_000;
+
+        let mut max_omega = 0.0f32;
+        let mut max_q_error = 0.0f32;
+
+        for _ in 0..steps {
+            body.integrate_velocities(dt);
+
+            // track angular velocity growth
+            let omega_len = body.angular_velocity().length();
+            max_omega = max_omega.max(omega_len);
+
+            // track quaternion normalization error
+            let q_len = body.orientation().length();
+            max_q_error = max_q_error.max((q_len - 1.0).abs());
+
+            assert!(omega_len.is_finite());
+            assert!(q_len.is_finite());
+        }
+
+        // Angular velocity should stay bounded
+        assert!(max_omega < 10.0);
+
+        // Quaternion should remain normalized
+        assert!(max_q_error < 1e-5);
     }
 }

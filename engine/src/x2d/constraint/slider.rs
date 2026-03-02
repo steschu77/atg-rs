@@ -55,8 +55,8 @@ impl SliderConstraint {
         self.r_b = self.world_anchor_b - body_b.position();
 
         // update the perpendicular basis
-        let n1 = body_b.rotation().rotate(self.basis.col1()).norm();
-        let n2 = body_b.rotation().rotate(self.basis.col2()).norm();
+        let n1 = body_b.orientation().rotate(self.basis.col1()).norm();
+        let n2 = body_b.orientation().rotate(self.basis.col2()).norm();
 
         self.n = [n1, n2];
 
