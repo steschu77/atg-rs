@@ -1,6 +1,11 @@
 pub mod constraint;
 pub mod mass;
 pub mod rigid_body;
+pub mod world;
+
+// ----------------------------------------------------------------------------
+pub type BodyHandle = u32;
+pub type JointHandle = u32;
 
 // ----------------------------------------------------------------------------
 #[derive(Debug, Clone, Copy, Default)]
