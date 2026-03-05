@@ -1,5 +1,6 @@
 use crate::error::Result;
 use crate::sys::opengl as gl;
+use crate::util::obj_pool::{ObjId, ObjPool};
 use crate::v2d::{m4x4::M4x4, v3::V3};
 
 // ----------------------------------------------------------------------------
@@ -72,101 +73,7 @@ pub trait GlPipeline {
 }
 
 // ----------------------------------------------------------------------------
-#[derive(Debug)]
-pub struct GlMeshes {
-    meshes: Vec<Option<GlMesh>>,
-    free_ids: Vec<usize>,
-}
-
-// ----------------------------------------------------------------------------
-impl GlMeshes {
-    // ------------------------------------------------------------------------
-    pub fn new(initial: &[GlMesh]) -> Self {
-        let meshes = initial.iter().cloned().map(Some).collect();
-        GlMeshes {
-            meshes,
-            free_ids: Vec::new(),
-        }
-    }
-
-    // ------------------------------------------------------------------------
-    pub fn insert(&mut self, mesh: GlMesh) -> usize {
-        if let Some(id) = self.free_ids.pop() {
-            assert!(id < self.meshes.len());
-            assert!(self.meshes[id].is_none());
-            self.meshes[id] = Some(mesh);
-            id
-        } else {
-            self.meshes.push(Some(mesh));
-            self.meshes.len() - 1
-        }
-    }
-
-    // ------------------------------------------------------------------------
-    pub fn remove(&mut self, id: usize) -> Option<GlMesh> {
-        let mesh = self.meshes.get_mut(id);
-        if let Some(m) = mesh
-            && m.is_some()
-        {
-            self.free_ids.push(id);
-            m.take()
-        } else {
-            None
-        }
-    }
-
-    // ------------------------------------------------------------------------
-    pub fn get(&self, id: usize) -> Option<&GlMesh> {
-        self.meshes.get(id).and_then(|m| m.as_ref())
-    }
-}
-
-// ----------------------------------------------------------------------------
-#[derive(Debug)]
-pub struct GlMaterials {
-    materials: Vec<Option<GlMaterial>>,
-    free_ids: Vec<usize>,
-}
-
-// ----------------------------------------------------------------------------
-impl GlMaterials {
-    // ------------------------------------------------------------------------
-    pub fn new(initial: &[GlMaterial]) -> Self {
-        let materials = initial.iter().cloned().map(Some).collect();
-        GlMaterials {
-            materials,
-            free_ids: Vec::new(),
-        }
-    }
-
-    // ------------------------------------------------------------------------
-    pub fn insert(&mut self, material: GlMaterial) -> usize {
-        if let Some(id) = self.free_ids.pop() {
-            assert!(id < self.materials.len());
-            assert!(self.materials[id].is_none());
-            self.materials[id] = Some(material);
-            id
-        } else {
-            self.materials.push(Some(material));
-            self.materials.len() - 1
-        }
-    }
-
-    // ------------------------------------------------------------------------
-    pub fn remove(&mut self, id: usize) -> Option<GlMaterial> {
-        let material = self.materials.get_mut(id);
-        if let Some(m) = material
-            && m.is_some()
-        {
-            self.free_ids.push(id);
-            m.take()
-        } else {
-            None
-        }
-    }
-
-    // ------------------------------------------------------------------------
-    pub fn get(&self, id: usize) -> Option<&GlMaterial> {
-        self.materials.get(id).and_then(|m| m.as_ref())
-    }
-}
+pub type GlMeshes = ObjPool<GlMesh>;
+pub type GlMeshId = ObjId<GlMesh>;
+pub type GlMaterials = ObjPool<GlMaterial>;
+pub type GlMaterialId = ObjId<GlMaterial>;

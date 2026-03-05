@@ -1,6 +1,8 @@
 use crate::core::component::{Component, Context};
 use crate::core::game_input::GameKey;
-use crate::core::gl_renderer::{RenderContext, RenderObject, Transform};
+use crate::core::gl_renderer::{
+    DefaultMaterials, DefaultMeshes, RenderContext, RenderObject, Transform,
+};
 use crate::error::Result;
 use crate::v2d::{affine3x3, m3x3::M3x3, q::Q, v3::V3, v4::V4};
 use crate::x2d::{self, mass::Mass, rigid_body::RigidBody};
@@ -350,8 +352,8 @@ impl Car {
                         ..Default::default()
                     },
                     pipe_id: 0,
-                    mesh_id: 0,
-                    material_id: 0,
+                    mesh_id: context.default_mesh(DefaultMeshes::Cube),
+                    material_id: context.default_material(DefaultMaterials::White),
                     ..Default::default()
                 },
                 RenderObject {
@@ -362,7 +364,7 @@ impl Car {
                     },
                     pipe_id: 0,
                     mesh_id: wheel_mesh_id,
-                    material_id: 0,
+                    material_id: context.default_material(DefaultMaterials::Black),
                     ..Default::default()
                 },
                 RenderObject {
@@ -373,7 +375,7 @@ impl Car {
                     },
                     pipe_id: 0,
                     mesh_id: wheel_mesh_id,
-                    material_id: 0,
+                    material_id: context.default_material(DefaultMaterials::Black),
                     ..Default::default()
                 },
                 RenderObject {
@@ -384,7 +386,7 @@ impl Car {
                     },
                     pipe_id: 0,
                     mesh_id: wheel_mesh_id,
-                    material_id: 0,
+                    material_id: context.default_material(DefaultMaterials::Black),
                     ..Default::default()
                 },
                 RenderObject {
@@ -395,7 +397,7 @@ impl Car {
                     },
                     pipe_id: 0,
                     mesh_id: wheel_mesh_id,
-                    material_id: 0,
+                    material_id: context.default_material(DefaultMaterials::Black),
                     ..Default::default()
                 },
             ],
@@ -409,7 +411,7 @@ impl Car {
                     },
                     pipe_id: 0,
                     mesh_id: left_arrow_mesh_id,
-                    material_id: 0,
+                    material_id: context.default_material(DefaultMaterials::Green),
                     ..Default::default()
                 },
                 RenderObject {
@@ -421,7 +423,7 @@ impl Car {
                     },
                     pipe_id: 0,
                     mesh_id: right_arrow_mesh_id,
-                    material_id: 0,
+                    material_id: context.default_material(DefaultMaterials::Green),
                     ..Default::default()
                 },
             ],

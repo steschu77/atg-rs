@@ -3,7 +3,7 @@ use crate::core::camera::Camera;
 use crate::core::gl_graphics::{
     create_framebuffer, create_program, create_texture_vao, print_opengl_info,
 };
-use crate::core::gl_pipeline::{self, GlMaterial};
+use crate::core::gl_pipeline::{self, GlMaterial, GlMaterialId, GlMeshId};
 use crate::core::gl_pipeline_colored::{self, GlColoredPipeline};
 use crate::core::gl_pipeline_msdftex::{self, GlMSDFTexPipeline};
 use crate::error::{Error, Result};
@@ -83,7 +83,7 @@ impl Renderer {
             let material = materials.get(object.material_id);
             if let (Some(mesh), Some(material), Some(pipe)) = (mesh, material, pipe) {
                 uniforms.model = object.transform.into();
-                uniforms.mat_id = object.material_id as gl::GLint;
+                uniforms.mat_id = 0;
                 pipe.render(mesh, material, &uniforms)?;
             }
         }
@@ -129,6 +129,24 @@ impl IRenderer for Renderer {
 }
 
 // ----------------------------------------------------------------------------
+pub enum DefaultMeshes {
+    Cube,
+    Plane,
+}
+
+// ----------------------------------------------------------------------------
+pub enum DefaultMaterials {
+    Black,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    Magenta,
+    Cyan,
+    White,
+}
+
+// ----------------------------------------------------------------------------
 pub struct RenderContext {
     gl: Rc<gl::OpenGlFunctions>,
     colored_pipe: Rc<GlColoredPipeline>,
@@ -136,6 +154,8 @@ pub struct RenderContext {
     meshes: gl_pipeline::GlMeshes,
     materials: gl_pipeline::GlMaterials,
     pipes: Vec<Rc<dyn gl_pipeline::GlPipeline>>,
+    default_mesh_ids: Vec<GlMeshId>,
+    default_material_ids: Vec<GlMaterialId>,
 }
 
 // ----------------------------------------------------------------------------
@@ -147,8 +167,36 @@ impl RenderContext {
         let cube = colored_pipe.create_cube()?;
         let plane = colored_pipe.create_plane()?;
 
-        let meshes = gl_pipeline::GlMeshes::new(&[cube, plane]);
-        let materials = gl_pipeline::GlMaterials::new(&[]);
+        let mut meshes = gl_pipeline::GlMeshes::new();
+        let default_mesh_ids = vec![meshes.insert(cube), meshes.insert(plane)];
+
+        let mut materials = gl_pipeline::GlMaterials::new();
+        let default_material_ids = vec![
+            materials.insert(GlMaterial::Color {
+                color: V3::new([0.0, 0.0, 0.0]),
+            }),
+            materials.insert(GlMaterial::Color {
+                color: V3::new([1.0, 0.0, 0.0]),
+            }),
+            materials.insert(GlMaterial::Color {
+                color: V3::new([0.0, 1.0, 0.0]),
+            }),
+            materials.insert(GlMaterial::Color {
+                color: V3::new([1.0, 1.0, 0.0]),
+            }),
+            materials.insert(GlMaterial::Color {
+                color: V3::new([0.0, 0.0, 1.0]),
+            }),
+            materials.insert(GlMaterial::Color {
+                color: V3::new([1.0, 0.0, 1.0]),
+            }),
+            materials.insert(GlMaterial::Color {
+                color: V3::new([0.0, 1.0, 1.0]),
+            }),
+            materials.insert(GlMaterial::Color {
+                color: V3::new([1.0, 1.0, 1.0]),
+            }),
+        ];
 
         Ok(RenderContext {
             gl,
@@ -157,10 +205,12 @@ impl RenderContext {
             meshes,
             materials,
             pipes: vec![colored_pipe, msdftex_pipe],
+            default_mesh_ids,
+            default_material_ids,
         })
     }
 
-    pub fn insert_material(&mut self, material: GlMaterial) -> usize {
+    pub fn insert_material(&mut self, material: GlMaterial) -> GlMaterialId {
         self.materials.insert(material)
     }
 
@@ -169,14 +219,14 @@ impl RenderContext {
         vertices: &[gl_pipeline_colored::Vertex],
         indices: &[u32],
         is_debug: bool,
-    ) -> Result<usize> {
+    ) -> Result<GlMeshId> {
         let mesh = self.colored_pipe.create_mesh(vertices, indices, is_debug)?;
         Ok(self.meshes.insert(mesh))
     }
 
     pub fn update_colored_mesh(
         &mut self,
-        mesh_id: usize,
+        mesh_id: GlMeshId,
         vertices: &[gl_pipeline_colored::Vertex],
         indices: &[u32],
     ) -> Result<()> {
@@ -188,14 +238,14 @@ impl RenderContext {
     pub fn create_msdftex_mesh(
         &mut self,
         vertices: &[gl_pipeline_msdftex::Vertex],
-    ) -> Result<usize> {
+    ) -> Result<GlMeshId> {
         let mesh = self.msdftex_pipe.create_mesh(vertices)?;
         Ok(self.meshes.insert(mesh))
     }
 
     pub fn update_msdftex_mesh(
         &mut self,
-        mesh_id: usize,
+        mesh_id: GlMeshId,
         vertices: &[gl_pipeline_msdftex::Vertex],
     ) -> Result<()> {
         let mesh = self.meshes.get(mesh_id).ok_or(Error::InvalidMeshId)?;
@@ -203,19 +253,19 @@ impl RenderContext {
         Ok(())
     }
 
-    pub fn delete_mesh(&mut self, mesh_id: usize) -> Result<()> {
+    pub fn delete_mesh(&mut self, mesh_id: GlMeshId) -> Result<()> {
         let mesh = self.meshes.remove(mesh_id).ok_or(Error::InvalidMeshId)?;
         gl_pipeline::delete_mesh(&self.gl, &mesh);
         Ok(())
     }
 
-    pub fn create_cube(&mut self, is_debug: bool) -> Result<usize> {
+    pub fn create_cube(&mut self, is_debug: bool) -> Result<GlMeshId> {
         let (verts, indices) = gl_pipeline_colored::create_unit_cube_mesh();
         let mesh = self.colored_pipe.create_mesh(&verts, &indices, is_debug)?;
         Ok(self.meshes.insert(mesh))
     }
 
-    pub fn create_plane(&mut self, is_debug: bool) -> Result<usize> {
+    pub fn create_plane(&mut self, is_debug: bool) -> Result<GlMeshId> {
         let (verts, indices) = gl_pipeline_colored::create_plane_mesh();
         let mesh = self.colored_pipe.create_mesh(&verts, &indices, is_debug)?;
         Ok(self.meshes.insert(mesh))
@@ -231,6 +281,14 @@ impl RenderContext {
 
     pub fn materials(&self) -> &gl_pipeline::GlMaterials {
         &self.materials
+    }
+
+    pub fn default_mesh(&self, mesh: DefaultMeshes) -> GlMeshId {
+        self.default_mesh_ids[mesh as usize]
+    }
+
+    pub fn default_material(&self, material: DefaultMaterials) -> GlMaterialId {
+        self.default_material_ids[material as usize]
     }
 }
 
@@ -299,8 +357,8 @@ pub struct RenderObject {
     pub children: Vec<RenderObject>,
     pub transform: Transform,
     pub pipe_id: usize,
-    pub mesh_id: usize,
-    pub material_id: usize,
+    pub mesh_id: GlMeshId,
+    pub material_id: GlMaterialId,
 }
 
 // ----------------------------------------------------------------------------

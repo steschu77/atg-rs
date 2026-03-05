@@ -1,3 +1,4 @@
+use crate::core::gl_pipeline::GlMeshId;
 use crate::core::gl_pipeline_colored::{self, Vertex};
 use crate::core::gl_renderer::RenderContext;
 use crate::error::{Error, Result};
@@ -63,7 +64,7 @@ impl Terrain {
         context: &mut RenderContext,
         chunk_x: u32,
         chunk_z: u32,
-    ) -> Result<usize> {
+    ) -> Result<GlMeshId> {
         let resolution: f32 = TERRAIN_RESOLUTION;
         let chunk_size: u32 = 16;
         let mut vertices = Vec::new();
@@ -195,7 +196,7 @@ impl Terrain {
         x: f32,
         z: f32,
         length: f32,
-    ) -> Result<usize> {
+    ) -> Result<GlMeshId> {
         let pos = V3::new([x, self.height_at(x, z), z]);
         let normal = self.normal_at(x, z);
         let verts = gl_pipeline_colored::arrow(pos, pos + length * normal)?;
