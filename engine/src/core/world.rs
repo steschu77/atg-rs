@@ -5,7 +5,7 @@ use crate::core::{
     constrainer::Constrainer,
     game_input, gl_font,
     gl_pipeline::{self, GlMaterial},
-    gl_renderer::{RenderContext, RenderObject, Rotation, Transform},
+    gl_renderer::{DefaultMaterials, RenderContext, RenderObject, Rotation, Transform},
     gl_text::create_text_mesh,
     input,
     player::Player,
@@ -48,16 +48,6 @@ impl World {
             texture: font.texture,
         });
 
-        let green_id = render_context.insert_material(GlMaterial::Color {
-            color: V3::new([0.0, 1.0, 0.0]), // Green arrows
-        });
-        let red_id = render_context.insert_material(GlMaterial::Color {
-            color: V3::new([1.0, 0.0, 0.0]), // Red arrows
-        });
-        let blue_id = render_context.insert_material(GlMaterial::Color {
-            color: V3::new([0.0, 0.0, 1.0]), // Blue arrows
-        });
-
         let terrain = Terrain::default();
         //let terrain = Terrain::from_png(Path::new("assets/terrain/heightmap.png"))?;
         let camera = Camera::new(
@@ -92,7 +82,7 @@ impl World {
             },
             pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
             mesh_id,
-            material_id: 0,
+            material_id: render_context.default_material(DefaultMaterials::Green),
             ..Default::default()
         });
 
@@ -114,7 +104,7 @@ impl World {
                     },
                     pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
                     mesh_id,
-                    material_id: green_id,
+                    material_id: render_context.default_material(DefaultMaterials::Green),
                     ..Default::default()
                 });
             }
@@ -168,7 +158,7 @@ impl World {
                 },
                 pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
                 mesh_id: x0_debug_arrow_mesh_id,
-                material_id: green_id,
+                material_id: render_context.default_material(DefaultMaterials::Green),
                 ..Default::default()
             },
             RenderObject {
@@ -180,7 +170,7 @@ impl World {
                 },
                 pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
                 mesh_id: x1_debug_arrow_mesh_id,
-                material_id: red_id,
+                material_id: render_context.default_material(DefaultMaterials::Red),
                 ..Default::default()
             },
             RenderObject {
@@ -192,7 +182,7 @@ impl World {
                 },
                 pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
                 mesh_id: x2_debug_arrow_mesh_id,
-                material_id: blue_id,
+                material_id: render_context.default_material(DefaultMaterials::Blue),
                 ..Default::default()
             },
         ];

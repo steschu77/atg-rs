@@ -1,5 +1,5 @@
 use crate::core::component::{Component, Context};
-use crate::core::gl_renderer::{RenderContext, RenderObject, Transform};
+use crate::core::gl_renderer::{DefaultMaterials, RenderContext, RenderObject, Transform};
 use crate::core::{gl_pipeline, gl_pipeline_colored};
 use crate::error::Result;
 use crate::v2d::{q::Q, v3::V3, v4::V4};
@@ -49,7 +49,7 @@ impl PhysicsSphere {
             },
             pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
             mesh_id,
-            material_id: 0,
+            material_id: context.default_material(DefaultMaterials::Magenta),
             ..Default::default()
         };
 
@@ -62,7 +62,7 @@ impl PhysicsSphere {
             },
             pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
             mesh_id: debug_arrow_mesh_id,
-            material_id: 0,
+            material_id: context.default_material(DefaultMaterials::Magenta),
             ..Default::default()
         };
 

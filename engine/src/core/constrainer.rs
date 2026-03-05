@@ -1,6 +1,6 @@
 use crate::core::component::Context;
 use crate::core::gl_pipeline;
-use crate::core::gl_renderer::{RenderContext, RenderObject, Transform};
+use crate::core::gl_renderer::{DefaultMaterials, RenderContext, RenderObject, Transform};
 use crate::error::Result;
 use crate::v2d::{v3::V3, v4::V4};
 use crate::x2d::{constraint::slider::SliderConstraint, rigid_body::RigidBody};
@@ -36,7 +36,7 @@ impl Constrainer {
             },
             pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
             mesh_id: debug_arrow_mesh_id,
-            material_id: 0,
+            material_id: context.default_material(DefaultMaterials::Green),
             ..Default::default()
         };
 

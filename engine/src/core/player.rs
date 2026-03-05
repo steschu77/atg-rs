@@ -1,6 +1,8 @@
 use crate::core::component::{Component, Context};
 use crate::core::game_input::GameKey;
-use crate::core::gl_renderer::{RenderContext, RenderObject, Rotation, Transform};
+use crate::core::gl_renderer::{
+    DefaultMaterials, DefaultMeshes, RenderContext, RenderObject, Rotation, Transform,
+};
 use crate::error::Result;
 use crate::v2d::q::Q;
 use crate::v2d::{affine4x4, r2::R2, v2::V2, v3::V3, v4::V4};
@@ -206,8 +208,8 @@ impl Player {
                         ..Default::default()
                     },
                     pipe_id: 0,
-                    mesh_id: 0,
-                    material_id: 0,
+                    mesh_id: context.default_mesh(DefaultMeshes::Cube),
+                    material_id: context.default_material(DefaultMaterials::White),
                     ..Default::default()
                 },
                 RenderObject {
@@ -217,8 +219,8 @@ impl Player {
                         ..Default::default()
                     },
                     pipe_id: 0,
-                    mesh_id: 0,
-                    material_id: 0,
+                    mesh_id: context.default_mesh(DefaultMeshes::Cube),
+                    material_id: context.default_material(DefaultMaterials::White),
                     ..Default::default()
                 },
                 RenderObject {
@@ -228,8 +230,8 @@ impl Player {
                         ..Default::default()
                     },
                     pipe_id: 0,
-                    mesh_id: 0,
-                    material_id: 0,
+                    mesh_id: context.default_mesh(DefaultMeshes::Cube),
+                    material_id: context.default_material(DefaultMaterials::White),
                     ..Default::default()
                 },
                 RenderObject {
@@ -239,8 +241,8 @@ impl Player {
                         ..Default::default()
                     },
                     pipe_id: 0,
-                    mesh_id: 0,
-                    material_id: 0,
+                    mesh_id: context.default_mesh(DefaultMeshes::Cube),
+                    material_id: context.default_material(DefaultMaterials::White),
                     ..Default::default()
                 },
             ],
@@ -254,7 +256,7 @@ impl Player {
                     },
                     pipe_id: 0,
                     mesh_id: left_arrow_mesh_id,
-                    material_id: 0,
+                    material_id: context.default_material(DefaultMaterials::Magenta),
                     ..Default::default()
                 },
                 RenderObject {
@@ -266,7 +268,7 @@ impl Player {
                     },
                     pipe_id: 0,
                     mesh_id: right_arrow_mesh_id,
-                    material_id: 0,
+                    material_id: context.default_material(DefaultMaterials::Magenta),
                     ..Default::default()
                 },
             ],
