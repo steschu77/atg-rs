@@ -126,6 +126,27 @@ impl<T> ObjPool<T> {
     }
 
     // ------------------------------------------------------------------------
+    pub fn get_pair_mut(&mut self, a: ObjId<T>, b: ObjId<T>) -> Option<(&mut T, &mut T)> {
+        if a.index == b.index {
+            return None;
+        }
+
+        let (sa, sb) = if a.index < b.index {
+            let (left, right) = self.pool.split_at_mut_checked(b.index)?;
+            (&mut left[a.index], &mut right[0])
+        } else {
+            let (left, right) = self.pool.split_at_mut_checked(a.index)?;
+            (&mut right[0], &mut left[b.index])
+        };
+
+        if sa.epoch != a.epoch || sb.epoch != b.epoch {
+            return None;
+        }
+
+        Some((sa.value.as_mut()?, sb.value.as_mut()?))
+    }
+
+    // ------------------------------------------------------------------------
     pub fn iter(&self) -> impl Iterator<Item = &T> {
         self.pool.iter().filter_map(|s| s.value.as_ref())
     }
@@ -189,5 +210,36 @@ mod tests {
         assert_eq!(pool.get(b), Some(&2));
         assert_eq!(pool.get(c), Some(&3));
         assert_eq!(pool.get(d), Some(&4));
+    }
+
+    // ------------------------------------------------------------------------
+    #[test]
+    fn pair_access() {
+        let mut pool = ObjPool::default();
+
+        let a = pool.insert(1);
+        let b = pool.insert(2);
+
+        assert!(pool.get_pair_mut(a, a).is_none());
+
+        let (va, vb) = pool.get_pair_mut(a, b).unwrap();
+        *va += 1;
+        *vb += 2;
+
+        assert_eq!(pool.get_pair_mut(b, a), Some((&mut 4, &mut 2)));
+
+        pool.remove(a);
+
+        assert!(pool.get_pair_mut(a, b).is_none());
+
+        let a_new = pool.insert(1);
+        assert!(pool.get_pair_mut(a, b).is_none());
+
+        {
+            let (va, vb) = pool.get_pair_mut(a_new, b).unwrap();
+            std::mem::swap(va, vb);
+        }
+
+        assert_eq!(pool.get_pair_mut(a_new, b), Some((&mut 4, &mut 1)));
     }
 }
