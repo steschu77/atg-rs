@@ -1,4 +1,5 @@
-use crate::v2d::{m3x3::M3x3, q::Q, v3::V3};
+use crate::core::gl_renderer::Transform;
+use crate::v2d::{m3x3::M3x3, q::Q, v3::V3, v4::V4};
 use crate::x2d::{Material, mass::Mass};
 
 // ----------------------------------------------------------------------------
@@ -216,6 +217,15 @@ impl RigidBody {
         let rotational = 0.5 * self.angular_vel.dot(intertia * self.angular_vel);
 
         linear + rotational
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn transform(&self) -> Transform {
+        Transform {
+            position: V4::from_v3(self.position, 1.0),
+            rotation: self.orientation.into(),
+            ..Default::default()
+        }
     }
 
     // ------------------------------------------------------------------------

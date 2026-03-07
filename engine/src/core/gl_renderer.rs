@@ -329,11 +329,22 @@ impl From<M4x4> for Rotation {
 }
 
 // ----------------------------------------------------------------------------
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Transform {
     pub position: V4,
     pub rotation: Rotation,
     pub size: V4,
+}
+
+// ----------------------------------------------------------------------------
+impl Default for Transform {
+    fn default() -> Self {
+        Self {
+            position: V4::new([0.0, 0.0, 0.0, 1.0]),
+            rotation: Rotation::default(),
+            size: V4::new([1.0, 1.0, 1.0, 1.0]),
+        }
+    }
 }
 
 // ----------------------------------------------------------------------------

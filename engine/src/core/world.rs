@@ -1,8 +1,7 @@
 use crate::core::{
     camera::Camera,
-    car::{Car, Geometry},
+    car::{Car, GRAVITY, Geometry},
     component::{Component, Context},
-    constrainer::Constrainer,
     game_input, gl_font,
     gl_pipeline::{self, GlMaterial},
     gl_renderer::{DefaultMaterials, RenderContext, RenderObject, Rotation, Transform},
@@ -26,13 +25,14 @@ pub struct World {
     terrain: Terrain,
     player: Player,
     camera: Camera,
+    physics: x2d::world::World,
     car: Car,
     debug: RenderObject,
     terrain_chunks: Vec<RenderObject>,
     terrain_normal_arrows: Vec<RenderObject>,
     sphere_a: PhysicsSphere,
     sphere_b: PhysicsSphere,
-    constraint: Constrainer,
+    slider: x2d::JointId,
     debug_arrows: Vec<RenderObject>,
     _font: gl_font::Font,
     t: std::time::Duration,
@@ -110,34 +110,6 @@ impl World {
             }
         }
 
-        let mat = x2d::WOOD;
-        let mut sphere_a =
-            PhysicsSphere::new(&mut render_context, V3::new([2.0, 5.0, 2.0]), 0.1, mat)?;
-        sphere_a.body.apply_impulse_at(
-            sphere_a.body.mass() * V3::new([0.0, 0.0, 0.0]),
-            V3::new([2.0, 5.0, 2.0]),
-            "initial",
-        );
-
-        let mat = x2d::STEEL;
-        let mut sphere_b =
-            PhysicsSphere::new(&mut render_context, V3::new([3.0, 5.0, 2.0]), 0.5, mat)?;
-        sphere_b
-            .body
-            .apply_force_at(V3::new([0.0, 0.0, 100000.0]), V3::new([3.5, 5.0, 2.0]));
-        sphere_b.body.apply_impulse_at(
-            sphere_b.body.mass() * V3::new([0.0, 0.0, 0.0]),
-            V3::new([3.5, 5.0, 2.0]),
-            "initial",
-        );
-
-        let constraint = Constrainer::new(
-            &mut render_context,
-            V3::new([0.5, 0.0, 0.0]),
-            V3::new([0.0, 0.0, 0.0]),
-            V3::X0,
-        )?;
-
         use crate::core::gl_pipeline_colored::arrow;
         let x0_arrow_verts = arrow(V3::ZERO, V3::X0)?;
         let x1_arrow_verts = arrow(V3::ZERO, V3::X1)?;
@@ -150,7 +122,7 @@ impl World {
             render_context.create_colored_mesh(&x2_arrow_verts, &[], true)?;
         let debug_arrows = vec![
             RenderObject {
-                name: String::from("sphere_debug_arrow"),
+                name: String::from("x0_debug_arrow"),
                 transform: Transform {
                     position: V4::new([0.0, 0.0, 0.0, 1.0]),
                     rotation: Rotation::default(),
@@ -162,7 +134,7 @@ impl World {
                 ..Default::default()
             },
             RenderObject {
-                name: String::from("sphere_debug_arrow"),
+                name: String::from("x1_debug_arrow"),
                 transform: Transform {
                     position: V4::new([0.0, 0.0, 0.0, 1.0]),
                     rotation: Rotation::default(),
@@ -174,7 +146,7 @@ impl World {
                 ..Default::default()
             },
             RenderObject {
-                name: String::from("sphere_debug_arrow"),
+                name: String::from("x2_debug_arrow"),
                 transform: Transform {
                     position: V4::new([0.0, 0.0, 0.0, 1.0]),
                     rotation: Rotation::default(),
@@ -200,18 +172,36 @@ impl World {
         };
         let car = Car::new(&mut render_context, car_geo)?;
 
+        let mut physics = x2d::world::World::new();
+
+        let mat = x2d::WOOD;
+        let body_a = PhysicsSphere::new_body(V3::new([2.0, 5.0, 2.0]), 0.1, mat)?;
+        let body_b = PhysicsSphere::new_body(V3::new([3.0, 5.0, 2.0]), 0.5, mat)?;
+
+        let body_a = physics.add_body(body_a);
+        let body_b = physics.add_body(body_b);
+
+        let sphere_a = PhysicsSphere::new_sphere(&mut render_context, body_a, 0.1)?;
+        let sphere_b = PhysicsSphere::new_sphere(&mut render_context, body_b, 0.5)?;
+
+        let dir = V3::new([1.0, -1.0, 0.0]).norm();
+        let slider =
+            x2d::constraint::joint::Joint::new_slider(body_a, body_b, V3::ZERO, V3::ZERO, dir, 0.2);
+        let slider = physics.add_joint(slider);
+
         Ok(World {
             render_context,
             input_context: game_input::InputContext::default(),
             terrain,
             camera,
             player,
+            physics,
             debug,
             terrain_chunks,
             terrain_normal_arrows,
             sphere_a,
             sphere_b,
-            constraint,
+            slider,
             debug_arrows,
             car,
             _font: font,
@@ -234,38 +224,28 @@ impl World {
         };
 
         self.camera.update(&ctx)?;
-        //self.player.update(&ctx)?;
-        //self.car.update(&ctx)?;
-        self.sphere_a.update(&ctx)?;
-        self.sphere_b.update(&ctx)?;
-        self.constraint
-            .update(&ctx, &mut self.sphere_a.body, &mut self.sphere_b.body)?;
+        self.player.update(&ctx)?;
+        self.car.update(&ctx)?;
 
-        for _ in 0..3 {
-            self.sphere_a.solve_constraints();
-            self.sphere_b.solve_constraints();
-            self.constraint
-                .solve(&mut self.sphere_a.body, &mut self.sphere_b.body);
+        if let Some(sphere_b) = self.physics.get_body_mut(self.sphere_b.id()) {
+            sphere_b.apply_force(GRAVITY * sphere_b.mass());
         }
 
-        self.camera.integrate_positions(ctx.dt_secs());
-        //self.player.integrate_positions(ctx.dt_secs());
-        //self.car.integrate_positions(ctx.dt_secs());
+        self.physics.step(ctx.dt_secs());
 
-        self.sphere_a.integrate_positions(ctx.dt_secs());
-        self.sphere_b.integrate_positions(ctx.dt_secs());
+        self.physics
+            .update_body(self.sphere_a.id(), self.sphere_a.transform());
+        self.physics
+            .update_body(self.sphere_b.id(), self.sphere_b.transform());
+
+        self.camera.integrate_positions(ctx.dt_secs());
+        self.player.integrate_positions(ctx.dt_secs());
+        self.car.integrate_positions(ctx.dt_secs());
 
         self.player.update_debug_arrows(&mut self.render_context)?;
-        self.sphere_a
-            .update_debug_arrows(&mut self.render_context)?;
-        self.sphere_b
-            .update_debug_arrows(&mut self.render_context)?;
-        self.constraint
-            .update_debug_arrows(&mut self.render_context)?;
 
         let (forward, position) = self.player.transform();
         //let (forward, position) = self.car.transform();
-        //let (forward, position) = self.sphere_a.transform();
         //let (forward, position) = (V4::X2, V4::ZERO);
 
         let mesh = create_text_mesh(&self._font, &format!("{position}"))?;
@@ -293,7 +273,6 @@ impl World {
         objects.push(self.sphere_b.object.clone());
         objects.push(self.sphere_b.debug_arrow.clone());
         objects.extend(self.debug_arrows.iter().cloned());
-        objects.push(self.constraint.debug_arrow.clone());
 
         objects
     }
