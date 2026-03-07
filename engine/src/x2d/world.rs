@@ -1,3 +1,4 @@
+use crate::core::gl_renderer::Transform;
 use crate::util::obj_pool::ObjPool;
 use crate::x2d::{BodyId, JointId, constraint::joint::Joint, rigid_body::RigidBody};
 
@@ -33,6 +34,18 @@ impl World {
     // ------------------------------------------------------------------------
     pub fn remove_body(&mut self, id: BodyId) {
         self.bodies.remove(id);
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn update_body(&self, id: BodyId, transform: &mut Transform) {
+        if let Some(body) = self.bodies.get(id) {
+            *transform = body.transform();
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn get_body_mut(&mut self, id: BodyId) -> Option<&mut RigidBody> {
+        self.bodies.get_mut(id)
     }
 
     // ------------------------------------------------------------------------

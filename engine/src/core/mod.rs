@@ -4,7 +4,6 @@ pub mod camera;
 pub mod car;
 pub mod clock;
 pub mod component;
-pub mod constrainer;
 pub mod game_input;
 pub mod game_loop;
 pub mod gl_font;
