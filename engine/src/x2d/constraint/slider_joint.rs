@@ -3,7 +3,7 @@ use crate::x2d::rigid_body::RigidBody;
 
 // ----------------------------------------------------------------------------
 #[derive(Debug, Clone)]
-pub struct SliderConstraint {
+pub struct SliderJoint {
     pub local_anchor_a: V3,
     pub local_anchor_b: V3,
     pub local_line_dir_b: V3,
@@ -24,7 +24,7 @@ pub struct SliderConstraint {
 }
 
 // ----------------------------------------------------------------------------
-impl SliderConstraint {
+impl SliderJoint {
     // ------------------------------------------------------------------------
     pub fn new(local_anchor_a: V3, local_anchor_b: V3, local_line_dir_b: V3, beta: f32) -> Self {
         let basis = affine3x3::basis_from_x0(local_line_dir_b);

@@ -3,14 +3,14 @@ use crate::core::gl_pipeline;
 use crate::core::gl_renderer::{DefaultMaterials, RenderContext, RenderObject, Transform};
 use crate::error::Result;
 use crate::v2d::{v3::V3, v4::V4};
-use crate::x2d::{constraint::slider::SliderConstraint, rigid_body::RigidBody};
+use crate::x2d::{constraint::slider_joint::SliderJoint, rigid_body::RigidBody};
 
 // ----------------------------------------------------------------------------
 /// A constraint connecting two rigid bodies, enforcing a reduction in DOF between them.
 #[derive(Debug)]
 pub struct Constrainer {
     pub debug_arrow: RenderObject,
-    pub constraint: SliderConstraint,
+    pub constraint: SliderJoint,
     pub pos: V3,
 }
 
@@ -25,7 +25,7 @@ impl Constrainer {
             .create_colored_mesh(&arrow_verts, &[], true)
             .unwrap();
 
-        let constraint = SliderConstraint::new(pt_a, pt_b, dir_b, 0.2);
+        let constraint = SliderJoint::new(pt_a, pt_b, dir_b, 0.2);
 
         let debug_arrow = RenderObject {
             name: String::from("debug_arrow"),

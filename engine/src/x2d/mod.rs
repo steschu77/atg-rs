@@ -1,6 +1,13 @@
 pub mod constraint;
 pub mod mass;
 pub mod rigid_body;
+pub mod world;
+
+use crate::util::obj_pool::ObjId;
+
+// ----------------------------------------------------------------------------
+pub type BodyId = ObjId<rigid_body::RigidBody>;
+pub type JointId = ObjId<constraint::joint::Joint>;
 
 // ----------------------------------------------------------------------------
 #[derive(Debug, Clone, Copy, Default)]
