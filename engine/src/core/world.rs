@@ -176,7 +176,7 @@ impl World {
 
         let mat = x2d::WOOD;
         let body_a = PhysicsSphere::new_body(V3::new([2.0, 5.0, 2.0]), 0.1, mat)?;
-        let body_b = PhysicsSphere::new_body(V3::new([3.0, 5.0, 2.0]), 0.5, mat)?;
+        let body_b = PhysicsSphere::new_body(V3::new([6.0, 5.0, 2.0]), 0.5, mat)?;
 
         let body_a = physics.add_body(body_a);
         let body_b = physics.add_body(body_b);
@@ -184,9 +184,14 @@ impl World {
         let sphere_a = PhysicsSphere::new_sphere(&mut render_context, body_a, 0.1)?;
         let sphere_b = PhysicsSphere::new_sphere(&mut render_context, body_b, 0.5)?;
 
-        let dir = V3::new([1.0, -1.0, 0.0]).norm();
-        let slider =
-            x2d::constraint::joint::Joint::new_slider(body_a, body_b, V3::ZERO, V3::ZERO, dir, 0.2);
+        let slider = x2d::constraint::joint::Joint::new_distance(
+            body_a,
+            body_b,
+            V3::ZERO,
+            V3::ZERO,
+            4.0,
+            0.2,
+        );
         let slider = physics.add_joint(slider);
 
         Ok(World {
@@ -224,8 +229,8 @@ impl World {
         };
 
         self.camera.update(&ctx)?;
-        self.player.update(&ctx)?;
-        self.car.update(&ctx)?;
+        //self.player.update(&ctx)?;
+        //self.car.update(&ctx)?;
 
         if let Some(sphere_b) = self.physics.get_body_mut(self.sphere_b.id()) {
             sphere_b.apply_force(GRAVITY * sphere_b.mass());
@@ -238,9 +243,9 @@ impl World {
         self.physics
             .update_body(self.sphere_b.id(), self.sphere_b.transform());
 
-        self.camera.integrate_positions(ctx.dt_secs());
-        self.player.integrate_positions(ctx.dt_secs());
-        self.car.integrate_positions(ctx.dt_secs());
+        //self.camera.integrate_positions(ctx.dt_secs());
+        //self.player.integrate_positions(ctx.dt_secs());
+        //self.car.integrate_positions(ctx.dt_secs());
 
         self.player.update_debug_arrows(&mut self.render_context)?;
 
