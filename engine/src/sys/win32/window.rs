@@ -1,6 +1,5 @@
-use windows::Win32::UI::Input::HRAWINPUT;
 use windows::Win32::{
-    Foundation::*, Graphics::Gdi::*, System::LibraryLoader::GetModuleHandleW,
+    Foundation::*, Graphics::Gdi::*, System::LibraryLoader::GetModuleHandleW, UI::Input::HRAWINPUT,
     UI::WindowsAndMessaging::*,
 };
 use windows::core::*;
@@ -40,20 +39,25 @@ impl<T: IWindow> WindowProc<T> {
         title: &str,
         class_name: &str,
         style: WINDOW_STYLE,
+        icon: Option<String>,
         params: T::Params,
     ) -> Result<HWND> {
-        let title = title.encode_utf16().chain(Some(0)).collect::<Vec<_>>();
-        let class_name = class_name.encode_utf16().chain(Some(0)).collect::<Vec<_>>();
+        let title = HSTRING::from(title);
+        let class_name = HSTRING::from(class_name);
+        let icon = icon.as_ref().map(|s| HSTRING::from(s.as_str()));
 
-        let h_instance = unsafe { GetModuleHandleW(None).unwrap() };
+        let h_module = unsafe { GetModuleHandleW(None).unwrap() };
+        let h_instance = Into::<HINSTANCE>::into(h_module);
+        let h_icon = icon.and_then(|i| unsafe { LoadIconW(Some(h_instance), &i).ok() });
 
         let wc = WNDCLASSW {
             hCursor: unsafe { LoadCursorW(None, IDC_ARROW).ok().unwrap() },
             hbrBackground: unsafe { HBRUSH(GetStockObject(NULL_BRUSH).0) },
-            hInstance: h_instance.into(),
+            hInstance: h_instance,
             lpszClassName: PCWSTR(class_name.as_ptr()),
             style: CS_OWNDC,
             lpfnWndProc: Some(Self::wndproc),
+            hIcon: h_icon.unwrap_or_default(),
             ..Default::default()
         };
 
@@ -64,8 +68,8 @@ impl<T: IWindow> WindowProc<T> {
         let hwnd = unsafe {
             CreateWindowExW(
                 Default::default(),
-                PCWSTR(class_name.as_ptr()),
-                PCWSTR(title.as_ptr()),
+                &class_name,
+                &title,
                 style,
                 CW_USEDEFAULT,
                 CW_USEDEFAULT,
@@ -73,7 +77,7 @@ impl<T: IWindow> WindowProc<T> {
                 600,
                 None,
                 None,
-                Some(h_instance.into()),
+                Some(h_instance),
                 Some(Box::into_raw(params) as *const core::ffi::c_void),
             )?
         };

@@ -1,3 +1,4 @@
 #define RT_MANIFEST 24
 
-1 RT_MANIFEST "game.exe.manifest"
+1 RT_MANIFEST "res/game.exe.manifest"
+APP_ICON ICON "res/atg.ico"
