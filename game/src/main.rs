@@ -296,6 +296,7 @@ mod win32 {
             "Game",
             "GameWindow",
             WS_POPUP | WS_VISIBLE,
+            Some(String::from("APP_ICON")),
             GameWindowParams {},
         );
 
