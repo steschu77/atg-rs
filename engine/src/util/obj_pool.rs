@@ -30,6 +30,7 @@ impl<T> Clone for ObjId<T> {
 }
 
 // ----------------------------------------------------------------------------
+#[derive(Debug)]
 struct ObjSlot<T> {
     value: Option<T>,
     epoch: u32,
@@ -46,7 +47,7 @@ impl<T> Default for ObjSlot<T> {
 }
 
 // ----------------------------------------------------------------------------
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct ObjPool<T> {
     pool: Vec<ObjSlot<T>>,
     free: Vec<usize>,
@@ -123,6 +124,21 @@ impl<T> ObjPool<T> {
             return None;
         }
         slot.value.as_mut()
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn get_pair(&mut self, a: ObjId<T>, b: ObjId<T>) -> Option<(&T, &T)> {
+        if a.index == b.index {
+            return None;
+        }
+
+        let (sa, sb) = (self.pool.get(a.index)?, self.pool.get(b.index)?);
+
+        if sa.epoch != a.epoch || sb.epoch != b.epoch {
+            return None;
+        }
+
+        Some((sa.value.as_ref()?, sb.value.as_ref()?))
     }
 
     // ------------------------------------------------------------------------
@@ -220,19 +236,23 @@ mod tests {
         let a = pool.insert(1);
         let b = pool.insert(2);
 
+        assert!(pool.get_pair(a, a).is_none());
         assert!(pool.get_pair_mut(a, a).is_none());
 
         let (va, vb) = pool.get_pair_mut(a, b).unwrap();
         *va += 1;
         *vb += 2;
 
+        assert_eq!(pool.get_pair(b, a), Some((&4, &2)));
         assert_eq!(pool.get_pair_mut(b, a), Some((&mut 4, &mut 2)));
 
         pool.remove(a);
 
+        assert!(pool.get_pair(a, b).is_none());
         assert!(pool.get_pair_mut(a, b).is_none());
 
         let a_new = pool.insert(1);
+        assert!(pool.get_pair(a, b).is_none());
         assert!(pool.get_pair_mut(a, b).is_none());
 
         {
@@ -240,6 +260,7 @@ mod tests {
             std::mem::swap(va, vb);
         }
 
+        assert_eq!(pool.get_pair(a_new, b), Some((&4, &1)));
         assert_eq!(pool.get_pair_mut(a_new, b), Some((&mut 4, &mut 1)));
     }
 }
