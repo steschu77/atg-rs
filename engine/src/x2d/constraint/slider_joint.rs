@@ -7,7 +7,6 @@ pub struct SliderJoint {
     pub local_anchor_a: V3,
     pub local_anchor_b: V3,
     pub local_line_dir_b: V3,
-    pub beta: f32, // Baumgarte stabilization factor
 
     // Solver state (warm starting)
     accumulated_lambda: [f32; 2],
@@ -27,13 +26,12 @@ pub struct SliderJoint {
 // ----------------------------------------------------------------------------
 impl SliderJoint {
     // ------------------------------------------------------------------------
-    pub fn new(local_anchor_a: V3, local_anchor_b: V3, local_line_dir_b: V3, beta: f32) -> Self {
+    pub fn new(local_anchor_a: V3, local_anchor_b: V3, local_line_dir_b: V3) -> Self {
         let basis = affine3x3::basis_from_x0(local_line_dir_b);
         Self {
             local_anchor_a,
             local_anchor_b,
             local_line_dir_b: local_line_dir_b.norm(),
-            beta,
             accumulated_lambda: [0.0; 2],
             effective_mass: [0.0; 2],
             bias: [0.0; 2],
@@ -48,7 +46,7 @@ impl SliderJoint {
     }
 
     // ------------------------------------------------------------------------
-    pub fn pre_step(&mut self, body_a: &RigidBody, body_b: &RigidBody, _dt: f32) {
+    pub fn pre_step(&mut self, body_a: &RigidBody, body_b: &RigidBody, dt: f32) {
         // Compute world anchor
         self.world_anchor_a = body_a.to_world(self.local_anchor_a);
         self.world_anchor_b = body_b.to_world(self.local_anchor_b);
@@ -84,7 +82,7 @@ impl SliderJoint {
                 position_error,
                 k
             );
-            //self.bias[i] = self.beta / dt * position_error;
+            self.bias[i] = 0.01 / dt * position_error;
         }
     }
 

@@ -202,7 +202,7 @@ impl World {
             terrain_normal_arrows,
             sphere_a,
             sphere_b,
-            joint: slider,
+            joint,
             debug_arrows,
             car,
             _font: font,

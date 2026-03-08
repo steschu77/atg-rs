@@ -28,12 +28,11 @@ impl Joint {
         local_anchor_a: V3,
         local_anchor_b: V3,
         rest_length: f32,
-        beta: f32,
     ) -> Self {
         Self::Distance {
             body_a,
             body_b,
-            joint: DistanceJoint::new(local_anchor_a, local_anchor_b, rest_length, beta),
+            joint: DistanceJoint::new(local_anchor_a, local_anchor_b, rest_length),
         }
     }
 
@@ -44,12 +43,11 @@ impl Joint {
         local_anchor_a: V3,
         local_anchor_b: V3,
         local_line_dir_b: V3,
-        beta: f32,
     ) -> Self {
         Self::Slider {
             body_a,
             body_b,
-            joint: SliderJoint::new(local_anchor_a, local_anchor_b, local_line_dir_b, beta),
+            joint: SliderJoint::new(local_anchor_a, local_anchor_b, local_line_dir_b),
         }
     }
 
