@@ -1,7 +1,9 @@
 use crate::util::obj_pool::ObjPool;
 use crate::v2d::v3::V3;
 use crate::x2d::BodyId;
-use crate::x2d::constraint::{distance_joint::DistanceJoint, slider_joint::SliderJoint};
+use crate::x2d::constraint::{
+    distance_joint::DistanceJoint, slider_joint::SliderJoint, spring_joint::SpringJoint,
+};
 use crate::x2d::rigid_body::RigidBody;
 
 // ----------------------------------------------------------------------------
@@ -16,6 +18,11 @@ pub enum Joint {
         body_a: BodyId,
         body_b: BodyId,
         joint: SliderJoint,
+    },
+    Spring {
+        body_a: BodyId,
+        body_b: BodyId,
+        joint: SpringJoint,
     },
 }
 
@@ -33,6 +40,22 @@ impl Joint {
             body_a,
             body_b,
             joint: DistanceJoint::new(local_anchor_a, local_anchor_b, rest_length),
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn new_spring(
+        body_a: BodyId,
+        body_b: BodyId,
+        local_anchor_a: V3,
+        local_anchor_b: V3,
+        rest_length: f32,
+        softness: f32,
+    ) -> Self {
+        Self::Spring {
+            body_a,
+            body_b,
+            joint: SpringJoint::new(local_anchor_a, local_anchor_b, rest_length, softness),
         }
     }
 
@@ -55,6 +78,16 @@ impl Joint {
     pub fn pre_step(&mut self, bodies: &mut ObjPool<RigidBody>, dt: f32) {
         match self {
             Self::Distance {
+                body_a,
+                body_b,
+                joint,
+            } => {
+                if let Some((body_a, body_b)) = bodies.get_pair(*body_a, *body_b) {
+                    joint.pre_step(body_a, body_b, dt);
+                }
+            }
+
+            Self::Spring {
                 body_a,
                 body_b,
                 joint,
@@ -89,6 +122,16 @@ impl Joint {
                 }
             }
 
+            Self::Spring {
+                body_a,
+                body_b,
+                joint,
+            } => {
+                if let Some((body_a, body_b)) = bodies.get_pair_mut(*body_a, *body_b) {
+                    joint.warm_start(body_a, body_b);
+                }
+            }
+
             Self::Slider {
                 body_a,
                 body_b,
@@ -105,6 +148,16 @@ impl Joint {
     pub fn solve(&mut self, bodies: &mut ObjPool<RigidBody>) {
         match self {
             Self::Distance {
+                body_a,
+                body_b,
+                joint,
+            } => {
+                if let Some((body_a, body_b)) = bodies.get_pair_mut(*body_a, *body_b) {
+                    joint.solve(body_a, body_b);
+                }
+            }
+
+            Self::Spring {
                 body_a,
                 body_b,
                 joint,
