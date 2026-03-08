@@ -14,7 +14,7 @@ use crate::core::{
 use crate::error::Result;
 use crate::sys::opengl as gl;
 use crate::v2d::{v3::V3, v4::V4};
-use crate::x2d::{self};
+use crate::x2d::{self, constraint::joint::Joint};
 use std::path::Path;
 use std::rc::Rc;
 
@@ -176,18 +176,18 @@ impl World {
 
         let mat = x2d::WOOD;
         let body_a = PhysicsSphere::new_body(V3::new([2.0, 5.0, 2.0]), 0.1, mat)?;
-        let body_b = PhysicsSphere::new_body(V3::new([6.0, 5.0, 2.0]), 0.5, mat)?;
+        let body_b = PhysicsSphere::new_body(V3::new([6.0, 5.0, 2.0]), 0.2, mat)?;
 
         let body_a = physics.add_body(body_a);
         let body_b = physics.add_body(body_b);
 
         let sphere_a = PhysicsSphere::new_sphere(&mut render_context, body_a, 0.1)?;
-        let sphere_b = PhysicsSphere::new_sphere(&mut render_context, body_b, 0.5)?;
+        let sphere_b = PhysicsSphere::new_sphere(&mut render_context, body_b, 0.2)?;
 
-        // let joint = x2d::constraint::joint::Joint::new_distance(body_a, body_b, V3::ZERO, V3::ZERO, 4.0);
-        let dir = V3::new([1.0, -0.5, 1.0]).norm();
-        let joint =
-            x2d::constraint::joint::Joint::new_slider(body_a, body_b, V3::ZERO, V3::ZERO, dir);
+        //let joint = Joint::new_distance(body_a, body_b, V3::ZERO, V3::ZERO, 2.0);
+        let joint = Joint::new_spring(body_a, body_b, V3::ZERO, V3::ZERO, 2.0, 0.5);
+        //let dir = V3::new([1.0, -0.5, 1.0]).norm();
+        //let joint = Joint::new_slider(body_a, body_b, V3::ZERO, V3::ZERO, dir);
         let joint = physics.add_joint(joint);
 
         Ok(World {
@@ -257,13 +257,21 @@ impl World {
 
         let joint = self.physics.get_joint_mut(self.joint).unwrap();
         match joint {
-            x2d::constraint::joint::Joint::Distance { joint, .. } => {
+            Joint::Distance { joint, .. } => {
                 let mesh = create_text_mesh(&self._font, &format!("{:.2}", joint.error))?;
                 self.render_context
                     .update_msdftex_mesh(self.debug.mesh_id, &mesh)?;
                 self.debug.transform.position = position;
             }
-            x2d::constraint::joint::Joint::Slider { joint, .. } => {
+
+            Joint::Spring { joint, .. } => {
+                let mesh = create_text_mesh(&self._font, &format!("{:.2}", joint.error))?;
+                self.render_context
+                    .update_msdftex_mesh(self.debug.mesh_id, &mesh)?;
+                self.debug.transform.position = position;
+            }
+
+            Joint::Slider { joint, .. } => {
                 let mesh = create_text_mesh(
                     &self._font,
                     &format!("{:.2}, {:.2}", joint.error[0], joint.error[1]),
@@ -275,6 +283,7 @@ impl World {
         }
 
         let forward = V4::X2;
+        let position = V4::X3;
         self.camera.look_at(position, forward);
         Ok(())
     }
