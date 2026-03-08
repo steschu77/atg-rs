@@ -4,13 +4,13 @@ use crate::x2d::{BodyId, JointId, constraint::joint::Joint, rigid_body::RigidBod
 
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
-pub struct World {
+pub struct Physics {
     bodies: ObjPool<RigidBody>,
     joints: ObjPool<Joint>,
 }
 
 // ----------------------------------------------------------------------------
-impl Default for World {
+impl Default for Physics {
     fn default() -> Self {
         Self {
             bodies: ObjPool::new(),
@@ -20,7 +20,7 @@ impl Default for World {
 }
 
 // ----------------------------------------------------------------------------
-impl World {
+impl Physics {
     // ------------------------------------------------------------------------
     pub fn new() -> Self {
         Self::default()
@@ -56,6 +56,11 @@ impl World {
     // ------------------------------------------------------------------------
     pub fn remove_joint(&mut self, id: JointId) {
         self.joints.remove(id);
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn get_joint_mut(&mut self, id: JointId) -> Option<&mut Joint> {
+        self.joints.get_mut(id)
     }
 
     // ------------------------------------------------------------------------

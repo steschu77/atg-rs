@@ -25,14 +25,14 @@ pub struct World {
     terrain: Terrain,
     player: Player,
     camera: Camera,
-    physics: x2d::world::World,
+    physics: x2d::physics::Physics,
     car: Car,
     debug: RenderObject,
     terrain_chunks: Vec<RenderObject>,
     terrain_normal_arrows: Vec<RenderObject>,
     sphere_a: PhysicsSphere,
     sphere_b: PhysicsSphere,
-    slider: x2d::JointId,
+    joint: x2d::JointId,
     debug_arrows: Vec<RenderObject>,
     _font: gl_font::Font,
     t: std::time::Duration,
@@ -172,7 +172,7 @@ impl World {
         };
         let car = Car::new(&mut render_context, car_geo)?;
 
-        let mut physics = x2d::world::World::new();
+        let mut physics = x2d::physics::Physics::new();
 
         let mat = x2d::WOOD;
         let body_a = PhysicsSphere::new_body(V3::new([2.0, 5.0, 2.0]), 0.1, mat)?;
@@ -184,15 +184,11 @@ impl World {
         let sphere_a = PhysicsSphere::new_sphere(&mut render_context, body_a, 0.1)?;
         let sphere_b = PhysicsSphere::new_sphere(&mut render_context, body_b, 0.5)?;
 
-        let slider = x2d::constraint::joint::Joint::new_distance(
-            body_a,
-            body_b,
-            V3::ZERO,
-            V3::ZERO,
-            4.0,
-            0.2,
-        );
-        let slider = physics.add_joint(slider);
+        // let joint = x2d::constraint::joint::Joint::new_distance(body_a, body_b, V3::ZERO, V3::ZERO, 4.0);
+        let dir = V3::new([1.0, -0.5, 1.0]).norm();
+        let joint =
+            x2d::constraint::joint::Joint::new_slider(body_a, body_b, V3::ZERO, V3::ZERO, dir);
+        let joint = physics.add_joint(joint);
 
         Ok(World {
             render_context,
@@ -206,7 +202,7 @@ impl World {
             terrain_normal_arrows,
             sphere_a,
             sphere_b,
-            slider,
+            joint,
             debug_arrows,
             car,
             _font: font,
@@ -229,8 +225,8 @@ impl World {
         };
 
         self.camera.update(&ctx)?;
-        //self.player.update(&ctx)?;
-        //self.car.update(&ctx)?;
+        self.player.update(&ctx)?;
+        self.car.update(&ctx)?;
 
         if let Some(sphere_b) = self.physics.get_body_mut(self.sphere_b.id()) {
             sphere_b.apply_force(GRAVITY * sphere_b.mass());
@@ -243,21 +239,42 @@ impl World {
         self.physics
             .update_body(self.sphere_b.id(), self.sphere_b.transform());
 
-        //self.camera.integrate_positions(ctx.dt_secs());
-        //self.player.integrate_positions(ctx.dt_secs());
-        //self.car.integrate_positions(ctx.dt_secs());
+        self.camera.integrate_positions(ctx.dt_secs());
+        self.player.integrate_positions(ctx.dt_secs());
+        self.car.integrate_positions(ctx.dt_secs());
 
         self.player.update_debug_arrows(&mut self.render_context)?;
 
-        let (forward, position) = self.player.transform();
+        //let (forward, position) = self.player.transform();
         //let (forward, position) = self.car.transform();
         //let (forward, position) = (V4::X2, V4::ZERO);
 
-        let mesh = create_text_mesh(&self._font, &format!("{position}"))?;
-        self.render_context
-            .update_msdftex_mesh(self.debug.mesh_id, &mesh)?;
-        self.debug.transform.position = self.player.position();
+        let position = if let Some(sphere_b) = self.physics.get_body_mut(self.sphere_b.id()) {
+            V4::from_v3(sphere_b.position(), 1.0)
+        } else {
+            V4::X3
+        };
 
+        let joint = self.physics.get_joint_mut(self.joint).unwrap();
+        match joint {
+            x2d::constraint::joint::Joint::Distance { joint, .. } => {
+                let mesh = create_text_mesh(&self._font, &format!("{:.2}", joint.error))?;
+                self.render_context
+                    .update_msdftex_mesh(self.debug.mesh_id, &mesh)?;
+                self.debug.transform.position = position;
+            }
+            x2d::constraint::joint::Joint::Slider { joint, .. } => {
+                let mesh = create_text_mesh(
+                    &self._font,
+                    &format!("{:.2}, {:.2}", joint.error[0], joint.error[1]),
+                )?;
+                self.render_context
+                    .update_msdftex_mesh(self.debug.mesh_id, &mesh)?;
+                self.debug.transform.position = position;
+            }
+        }
+
+        let forward = V4::X2;
         self.camera.look_at(position, forward);
         Ok(())
     }

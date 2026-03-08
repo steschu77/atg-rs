@@ -7,7 +7,6 @@ pub struct DistanceJoint {
     pub local_anchor_a: V3,
     pub local_anchor_b: V3,
     pub rest_length: f32,
-    pub beta: f32,
 
     // Solver state
     accumulated_lambda: f32,
@@ -21,17 +20,18 @@ pub struct DistanceJoint {
 
     pub world_anchor_a: V3,
     pub world_anchor_b: V3,
+
+    pub error: f32,
 }
 
 // ----------------------------------------------------------------------------
 impl DistanceJoint {
     // ------------------------------------------------------------------------
-    pub fn new(local_anchor_a: V3, local_anchor_b: V3, rest_length: f32, beta: f32) -> Self {
+    pub fn new(local_anchor_a: V3, local_anchor_b: V3, rest_length: f32) -> Self {
         Self {
             local_anchor_a,
             local_anchor_b,
             rest_length,
-            beta,
             accumulated_lambda: 0.0,
             effective_mass: 0.0,
             bias: 0.0,
@@ -40,6 +40,7 @@ impl DistanceJoint {
             r_b: V3::zero(),
             world_anchor_a: V3::zero(),
             world_anchor_b: V3::zero(),
+            error: 0.0,
         }
     }
 
@@ -73,12 +74,14 @@ impl DistanceJoint {
         self.effective_mass = if k > f32::EPSILON { 1.0 / k } else { 0.0 };
 
         let position_error = dist - self.rest_length;
+        self.error = position_error;
+
         log::info!(
             "pre_step(dt: {dt}) mass_eff: {} → error: {position_error}",
             self.effective_mass,
         );
 
-        //self.bias = self.beta / dt * position_error;
+        self.bias = 0.01 / dt * position_error;
     }
 
     // ------------------------------------------------------------------------

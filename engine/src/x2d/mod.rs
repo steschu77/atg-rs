@@ -1,7 +1,7 @@
 pub mod constraint;
 pub mod mass;
+pub mod physics;
 pub mod rigid_body;
-pub mod world;
 
 use crate::util::obj_pool::ObjId;
 
