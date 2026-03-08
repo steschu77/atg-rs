@@ -25,7 +25,7 @@ pub struct World {
     terrain: Terrain,
     player: Player,
     camera: Camera,
-    physics: x2d::world::World,
+    physics: x2d::physics::Physics,
     car: Car,
     debug: RenderObject,
     terrain_chunks: Vec<RenderObject>,
@@ -172,7 +172,7 @@ impl World {
         };
         let car = Car::new(&mut render_context, car_geo)?;
 
-        let mut physics = x2d::world::World::new();
+        let mut physics = x2d::physics::Physics::new();
 
         let mat = x2d::WOOD;
         let body_a = PhysicsSphere::new_body(V3::new([2.0, 5.0, 2.0]), 0.1, mat)?;
