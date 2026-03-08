@@ -59,6 +59,11 @@ impl Physics {
     }
 
     // ------------------------------------------------------------------------
+    pub fn get_joint_mut(&mut self, id: JointId) -> Option<&mut Joint> {
+        self.joints.get_mut(id)
+    }
+
+    // ------------------------------------------------------------------------
     pub fn step(&mut self, dt: f32) {
         self.integrate_forces(dt);
         self.pre_step(dt);

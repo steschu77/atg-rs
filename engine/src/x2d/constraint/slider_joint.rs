@@ -21,6 +21,7 @@ pub struct SliderJoint {
     pub world_anchor_a: V3,
     pub world_anchor_b: V3,
     basis: M3x3,
+    pub error: [f32; 2],
 }
 
 // ----------------------------------------------------------------------------
@@ -42,6 +43,7 @@ impl SliderJoint {
             world_anchor_a: V3::zero(),
             world_anchor_b: V3::zero(),
             basis,
+            error: [0.0; 2],
         }
     }
 
@@ -75,6 +77,7 @@ impl SliderJoint {
             self.effective_mass[i] = if k > f32::EPSILON { 1.0 / k } else { 0.0 };
 
             let position_error = self.n[i].dot(self.world_anchor_a - self.world_anchor_b);
+            self.error[i] = position_error;
             log::info!(
                 "pre_step: position_error[{}] = {}, k = {}",
                 i,
