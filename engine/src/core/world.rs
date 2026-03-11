@@ -14,7 +14,7 @@ use crate::core::{
 use crate::error::Result;
 use crate::sys::opengl as gl;
 use crate::v2d::{v3::V3, v4::V4};
-use crate::x2d::{self, constraint::joint::Joint};
+use crate::x2d::{self, constraint::joint::Joint, constraint::softness::Softness};
 use std::path::Path;
 use std::rc::Rc;
 
@@ -174,9 +174,12 @@ impl World {
 
         let mut physics = x2d::physics::Physics::new();
 
+        let dir = V3::new([1.0, 1.0, 0.0]).norm();
         let mat = x2d::WOOD;
         let body_a = PhysicsSphere::new_body(V3::new([2.0, 5.0, 2.0]), 0.1, mat)?;
-        let body_b = PhysicsSphere::new_body(V3::new([6.0, 5.0, 2.0]), 0.2, mat)?;
+        let mut body_b = PhysicsSphere::new_body(V3::new([2.0, 5.0, 2.0]) + dir * 6.0, 0.2, mat)?;
+
+        body_b.apply_impulse(dir * -10.0, "initial_impulse");
 
         let body_a = physics.add_body(body_a);
         let body_b = physics.add_body(body_b);
@@ -184,10 +187,18 @@ impl World {
         let sphere_a = PhysicsSphere::new_sphere(&mut render_context, body_a, 0.1)?;
         let sphere_b = PhysicsSphere::new_sphere(&mut render_context, body_b, 0.2)?;
 
+        let softness = Softness::new(3.0, 0.2, 1.0 / 100.0);
+        log::info!(
+            "Softness: bias_rate={}, mass_scale={}, impulse_scale={}",
+            softness.bias_rate,
+            softness.mass_scale,
+            softness.impulse_scale
+        );
+
         //let joint = Joint::new_distance(body_a, body_b, V3::ZERO, V3::ZERO, 2.0);
-        let joint = Joint::new_spring(body_a, body_b, V3::ZERO, V3::ZERO, 2.0, 0.5);
-        //let dir = V3::new([1.0, -0.5, 1.0]).norm();
+        //let joint = Joint::new_spring(body_a, body_b, V3::ZERO, V3::ZERO, 2.0, softness);
         //let joint = Joint::new_slider(body_a, body_b, V3::ZERO, V3::ZERO, dir);
+        let joint = Joint::new_wheel(body_a, body_b, V3::ZERO, V3::ZERO, dir, 2.0, softness);
         let joint = physics.add_joint(joint);
 
         Ok(World {
@@ -225,8 +236,8 @@ impl World {
         };
 
         self.camera.update(&ctx)?;
-        self.player.update(&ctx)?;
-        self.car.update(&ctx)?;
+        //self.player.update(&ctx)?;
+        //self.car.update(&ctx)?;
 
         if let Some(sphere_b) = self.physics.get_body_mut(self.sphere_b.id()) {
             sphere_b.apply_force(GRAVITY * sphere_b.mass());
@@ -240,8 +251,8 @@ impl World {
             .update_body(self.sphere_b.id(), self.sphere_b.transform());
 
         self.camera.integrate_positions(ctx.dt_secs());
-        self.player.integrate_positions(ctx.dt_secs());
-        self.car.integrate_positions(ctx.dt_secs());
+        //self.player.integrate_positions(ctx.dt_secs());
+        //self.car.integrate_positions(ctx.dt_secs());
 
         self.player.update_debug_arrows(&mut self.render_context)?;
 
@@ -280,10 +291,23 @@ impl World {
                     .update_msdftex_mesh(self.debug.mesh_id, &mesh)?;
                 self.debug.transform.position = position;
             }
+
+            Joint::Wheel { joint, .. } => {
+                let mesh = create_text_mesh(
+                    &self._font,
+                    &format!(
+                        "{:.2}, {:.2}, {:.2}",
+                        joint.error[0], joint.error[1], joint.error[2]
+                    ),
+                )?;
+                self.render_context
+                    .update_msdftex_mesh(self.debug.mesh_id, &mesh)?;
+                self.debug.transform.position = position;
+            }
         }
 
         let forward = V4::X2;
-        let position = V4::X3;
+        //let position = V4::X3;
         self.camera.look_at(position, forward);
         Ok(())
     }

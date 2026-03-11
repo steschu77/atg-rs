@@ -1,4 +1,5 @@
 use crate::v2d::v3::V3;
+use crate::x2d::constraint::softness::Softness;
 use crate::x2d::rigid_body::RigidBody;
 
 // ----------------------------------------------------------------------------
@@ -8,7 +9,7 @@ pub struct SpringJoint {
     pub local_anchor_b: V3,
 
     pub rest_length: f32,
-    pub softness: f32,
+    pub softness: Softness,
 
     accumulated_lambda: f32,
     effective_mass: f32,
@@ -29,7 +30,12 @@ pub struct SpringJoint {
 // ----------------------------------------------------------------------------
 impl SpringJoint {
     // ------------------------------------------------------------------------
-    pub fn new(local_anchor_a: V3, local_anchor_b: V3, rest_length: f32, softness: f32) -> Self {
+    pub fn new(
+        local_anchor_a: V3,
+        local_anchor_b: V3,
+        rest_length: f32,
+        softness: Softness,
+    ) -> Self {
         Self {
             local_anchor_a,
             local_anchor_b,
@@ -49,7 +55,7 @@ impl SpringJoint {
     }
 
     // ------------------------------------------------------------------------
-    pub fn pre_step(&mut self, body_a: &RigidBody, body_b: &RigidBody, dt: f32) {
+    pub fn pre_step(&mut self, body_a: &RigidBody, body_b: &RigidBody, _dt: f32) {
         self.world_anchor_a = body_a.to_world(self.local_anchor_a);
         self.world_anchor_b = body_b.to_world(self.local_anchor_b);
 
@@ -80,7 +86,7 @@ impl SpringJoint {
         let position_error = dist - self.rest_length;
         self.error = position_error;
 
-        self.bias = 0.01 / dt * position_error;
+        self.bias = 50.0 * position_error;
     }
 
     // ------------------------------------------------------------------------
@@ -97,8 +103,8 @@ impl SpringJoint {
         let v_b = body_b.velocity_at(self.world_anchor_b);
 
         let c_dot = self.n.dot(v_a - v_b);
-        let mass_scale = self.softness;
-        let impulse_scale = 1.0 - mass_scale;
+        let mass_scale = self.softness.mass_scale;
+        let impulse_scale = self.softness.impulse_scale;
 
         let old_lambda = self.accumulated_lambda;
         let lambda =
