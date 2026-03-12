@@ -8,6 +8,7 @@ use crate::util::obj_pool::ObjId;
 // ----------------------------------------------------------------------------
 pub type BodyId = ObjId<rigid_body::RigidBody>;
 pub type JointId = ObjId<constraint::joint::Joint>;
+pub type ContactId = ObjId<constraint::contact::Contact>;
 
 // ----------------------------------------------------------------------------
 #[derive(Debug, Clone, Copy, Default)]
