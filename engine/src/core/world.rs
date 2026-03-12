@@ -6,7 +6,6 @@ use crate::core::{
     game_input::GameKey,
     gl_font,
     gl_pipeline::{self, GlMaterial},
-    gl_pipeline_colored::{cylinder, transform_mesh},
     gl_renderer::{DefaultMaterials, RenderContext, RenderObject, Rotation, Transform},
     gl_text::create_text_mesh,
     input,
@@ -17,8 +16,8 @@ use crate::core::{
 };
 use crate::error::Result;
 use crate::sys::opengl as gl;
-use crate::v2d::{m3x3::M3x3, q::Q, v3::V3, v4::V4};
-use crate::x2d::{self, constraint::joint::Joint, constraint::softness::Softness, mass::Mass};
+use crate::v2d::{v3::V3, v4::V4};
+use crate::x2d::{self, constraint::joint::Joint, constraint::softness::Softness};
 use std::path::Path;
 use std::rc::Rc;
 
@@ -38,8 +37,6 @@ pub struct World {
     sphere_a: PhysicsSphere,
     sphere_b: PhysicsSphere,
     joint: x2d::JointId,
-    body: x2d::BodyId,
-    body_object: RenderObject,
     debug_arrows: Vec<RenderObject>,
     _font: gl_font::Font,
     t: std::time::Duration,
@@ -211,32 +208,6 @@ impl World {
         let joint = Joint::new_wheel(body_a, body_b, V3::ZERO, V3::ZERO, dir, axle, 2.0, softness);
         let joint = physics.add_joint(joint);
 
-        let radius = 0.5;
-        let width = 0.3;
-        let body_pos = V3::new([0.0, radius, 0.0]);
-        let mass = Mass::from_wheel(12.5, radius)?;
-        let mut body = x2d::rigid_body::RigidBody::new(mass, x2d::RUBBER, body_pos, Q::identity());
-
-        body.apply_impulse_at(V3::X2 * 10.0, body_pos - V3::X1 * radius, "initial_impulse");
-
-        let body = physics.add_body(body);
-
-        let (mut verts, indices) = cylinder(12, radius, width);
-        transform_mesh(
-            &mut verts,
-            V3::default(),
-            M3x3::from_cols(-V3::X1, V3::X0, V3::X2),
-        );
-        let mesh_id = render_context.create_colored_mesh(&verts, &indices, false)?;
-        let body_object = RenderObject {
-            name: String::from("body"),
-            transform: Transform::default(),
-            pipe_id: 0,
-            mesh_id,
-            material_id: render_context.default_material(DefaultMaterials::Green),
-            ..Default::default()
-        };
-
         Ok(World {
             render_context,
             input_context: game_input::InputContext::default(),
@@ -250,8 +221,6 @@ impl World {
             sphere_a,
             sphere_b,
             joint,
-            body,
-            body_object,
             debug_arrows,
             car,
             wheel,
@@ -277,7 +246,7 @@ impl World {
         self.camera.update(&ctx)?;
         //self.player.update(&ctx)?;
         //self.car.update(&ctx)?;
-        self.wheel.update(&ctx, &mut self.physics, ctx.dt_secs())?;
+        self.wheel.update(&ctx, &mut self.physics)?;
 
         if let Some(wheel) = self.physics.get_body_mut(self.wheel.id()) {
             wheel.apply_force(GRAVITY * wheel.mass());
@@ -293,8 +262,6 @@ impl World {
             .update_body(self.sphere_a.id(), self.sphere_a.transform());
         self.physics
             .update_body(self.sphere_b.id(), self.sphere_b.transform());
-        self.physics
-            .update_body(self.body, &mut self.body_object.transform);
 
         self.camera.integrate_positions(ctx.dt_secs());
         //self.player.integrate_positions(ctx.dt_secs());
@@ -303,11 +270,6 @@ impl World {
         self.player.update_debug_arrows(&mut self.render_context)?;
         self.wheel.update_debug_arrows(&mut self.render_context)?;
         self.wheel.update_render_objects(&self.physics)?;
-
-        //let (forward, position) = self.player.transform();
-        //let (forward, position) = self.car.transform();
-        let (forward, position) = self.wheel.transform();
-        //let (forward, position) = (V4::X2, V4::ZERO);
 
         let position = if let Some(sphere_b) = self.physics.get_body_mut(self.sphere_b.id()) {
             V4::from_v3(sphere_b.position(), 1.0)
@@ -323,6 +285,7 @@ impl World {
 
         let joint = self.physics.get_joint_mut(self.joint).unwrap();
         joint.update_motor(motor_speed, max_torque);
+
         match joint {
             Joint::Distance { joint, .. } => {
                 let mesh = create_text_mesh(&self._font, &format!("{:.2}", joint.error))?;
@@ -362,8 +325,11 @@ impl World {
             }
         }
 
-        let forward = V4::X2;
-        //let position = V4::X3;
+        //let (forward, position) = self.player.transform();
+        //let (forward, position) = self.car.transform();
+        let (forward, position) = self.wheel.transform();
+        //let (forward, position) = (V4::X2, V4::ZERO);
+
         self.camera.look_at(position, forward);
         Ok(())
     }
@@ -378,10 +344,9 @@ impl World {
         //objects.extend(self.player.objects.iter().cloned());
         //objects.extend(self.player.debug_arrows.iter().cloned());
         objects.push(self.debug.clone());
-        objects.push(self.body_object.clone());
         //objects.extend(self.car.objects.iter().cloned());
-        //objects.push(self.wheel.object.clone());
-        //objects.extend(self.wheel.debug_arrows.iter().cloned());
+        objects.push(self.wheel.object.clone());
+        objects.extend(self.wheel.debug_arrows.iter().cloned());
         //objects.push(self.sphere_a.object.clone());
         //objects.push(self.sphere_a.debug_arrow.clone());
         //objects.push(self.sphere_b.object.clone());

@@ -3,7 +3,7 @@ use crate::core::game_input::GameKey;
 use crate::core::gl_pipeline_colored::{arrow, cylinder, transform_mesh};
 use crate::core::gl_renderer::{DefaultMaterials, RenderContext, RenderObject, Transform};
 use crate::error::{Error, Result};
-use crate::v2d::{affine3x3, m3x3::M3x3, q::Q, v3::V3, v4::V4};
+use crate::v2d::{m3x3::M3x3, q::Q, v3::V3, v4::V4};
 use crate::x2d::{
     self, BodyId, ContactId, constraint::contact::Contact, constraint::tire_contact::TireContext,
     mass::Mass, physics::Physics, rigid_body::RigidBody,
@@ -156,7 +156,7 @@ impl Wheel {
 
 // ----------------------------------------------------------------------------
 impl Wheel {
-    pub fn update(&mut self, ctx: &Context, physics: &mut Physics, dt: f32) -> Result<()> {
+    pub fn update(&mut self, ctx: &Context, physics: &mut Physics) -> Result<()> {
         const TURN_SPEED: f32 = 1.5;
         let dt = ctx.dt_secs();
 
@@ -198,7 +198,7 @@ impl Wheel {
                 contact_point: point,
                 basis,
                 penetration,
-                normal_force: 100.0,
+                normal_force: 400.0,
                 friction: 0.8,
                 drive_torque: self.drive_torque,
                 brake_torque: self.brake_torque,
