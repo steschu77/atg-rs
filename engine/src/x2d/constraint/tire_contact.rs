@@ -113,11 +113,7 @@ impl TireContact {
 
         body.apply_impulse_at(lateral * lambda, self.context.contact_point, "tire_lateral");
 
-        let drive_force = self.context.drive_torque / self.context.wheel_radius;
-        let brake_force = self.context.brake_torque / self.context.wheel_radius;
-        let wheel_force = drive_force - brake_force;
-
-        let mut lambda = wheel_force * dt;
+        let mut lambda = -forward_speed * self.eff_mass_forward;
 
         lambda = lambda.clamp(-max_lambda, max_lambda);
 
