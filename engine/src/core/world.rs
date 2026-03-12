@@ -2,7 +2,9 @@ use crate::core::{
     camera::Camera,
     car::{Car, GRAVITY, Geometry},
     component::{Component, Context},
-    game_input, gl_font,
+    game_input,
+    game_input::GameKey,
+    gl_font,
     gl_pipeline::{self, GlMaterial},
     gl_renderer::{DefaultMaterials, RenderContext, RenderObject, Rotation, Transform},
     gl_text::create_text_mesh,
@@ -198,7 +200,8 @@ impl World {
         //let joint = Joint::new_distance(body_a, body_b, V3::ZERO, V3::ZERO, 2.0);
         //let joint = Joint::new_spring(body_a, body_b, V3::ZERO, V3::ZERO, 2.0, softness);
         //let joint = Joint::new_slider(body_a, body_b, V3::ZERO, V3::ZERO, dir);
-        let joint = Joint::new_wheel(body_a, body_b, V3::ZERO, V3::ZERO, dir, 2.0, softness);
+        let axle = V3::X0;
+        let joint = Joint::new_wheel(body_a, body_b, V3::ZERO, V3::ZERO, dir, axle, 2.0, softness);
         let joint = physics.add_joint(joint);
 
         Ok(World {
@@ -266,7 +269,14 @@ impl World {
             V4::X3
         };
 
+        let (motor_speed, max_torque) = if ctx.state.is_pressed(GameKey::Accelerate) {
+            (2.0, 0.1)
+        } else {
+            (0.0, 0.0)
+        };
+
         let joint = self.physics.get_joint_mut(self.joint).unwrap();
+        joint.update_motor(motor_speed, max_torque);
         match joint {
             Joint::Distance { joint, .. } => {
                 let mesh = create_text_mesh(&self._font, &format!("{:.2}", joint.error))?;
@@ -296,8 +306,8 @@ impl World {
                 let mesh = create_text_mesh(
                     &self._font,
                     &format!(
-                        "{:.2}, {:.2}, {:.2}",
-                        joint.error[0], joint.error[1], joint.error[2]
+                        "{:.2}, {:.2}, {:.2}, {:.2}",
+                        joint.error[0], joint.error[1], joint.error[2], joint.error[3]
                     ),
                 )?;
                 self.render_context
