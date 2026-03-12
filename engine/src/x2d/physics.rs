@@ -69,8 +69,10 @@ impl Physics {
         self.pre_step(dt);
         self.warm_start();
 
-        for _ in 0..10 {
-            self.solve_constraints();
+        let solver_iterations = 10;
+        let dt_solver = dt / solver_iterations as f32;
+        for _ in 0..solver_iterations {
+            self.solve_constraints(dt_solver);
         }
 
         self.integrate_velocities(dt);
@@ -98,9 +100,9 @@ impl Physics {
     }
 
     // ------------------------------------------------------------------------
-    fn solve_constraints(&mut self) {
+    fn solve_constraints(&mut self, dt: f32) {
         for joint in self.joints.iter_mut() {
-            joint.solve(&mut self.bodies);
+            joint.solve(&mut self.bodies, dt);
         }
     }
 

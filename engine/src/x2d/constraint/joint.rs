@@ -82,12 +82,14 @@ impl Joint {
     }
 
     // ------------------------------------------------------------------------
+    #[allow(clippy::too_many_arguments)]
     pub fn new_wheel(
         body_a: BodyId,
         body_b: BodyId,
         local_anchor_a: V3,
         local_anchor_b: V3,
         local_axis_b: V3,
+        motor_axis_b: V3,
         rest_length: f32,
         softness: Softness,
     ) -> Self {
@@ -98,9 +100,22 @@ impl Joint {
                 local_anchor_a,
                 local_anchor_b,
                 local_axis_b,
+                motor_axis_b,
                 rest_length,
                 softness,
             ),
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn update_motor(&mut self, motor_speed: f32, max_motor_torque: f32) {
+        match self {
+            Self::Wheel { joint, .. } => {
+                joint.update_motor(motor_speed, max_motor_torque);
+            }
+            _ => {
+                // Only wheel joints have motors.
+            }
         }
     }
 
@@ -195,7 +210,7 @@ impl Joint {
     }
 
     // ------------------------------------------------------------------------
-    pub fn solve(&mut self, bodies: &mut ObjPool<RigidBody>) {
+    pub fn solve(&mut self, bodies: &mut ObjPool<RigidBody>, dt: f32) {
         match self {
             Self::Distance {
                 body_a,
@@ -233,7 +248,7 @@ impl Joint {
                 joint,
             } => {
                 if let Some((body_a, body_b)) = bodies.get_pair_mut(*body_a, *body_b) {
-                    joint.solve(body_a, body_b);
+                    joint.solve(body_a, body_b, dt);
                 }
             }
         }
