@@ -12,6 +12,7 @@ use crate::core::{
     player::Player,
     sphere::PhysicsSphere,
     terrain::Terrain,
+    wheel::Wheel,
 };
 use crate::error::Result;
 use crate::sys::opengl as gl;
@@ -29,6 +30,7 @@ pub struct World {
     camera: Camera,
     physics: x2d::physics::Physics,
     car: Car,
+    wheel: Wheel,
     debug: RenderObject,
     terrain_chunks: Vec<RenderObject>,
     terrain_normal_arrows: Vec<RenderObject>,
@@ -176,6 +178,8 @@ impl World {
 
         let mut physics = x2d::physics::Physics::new();
 
+        let wheel = Wheel::new(&mut render_context, &mut physics, V3::new([0.0, 2.0, 0.0]))?;
+
         let dir = V3::new([1.0, 1.0, 0.0]).norm();
         let mat = x2d::WOOD;
         let body_a = PhysicsSphere::new_body(V3::new([2.0, 5.0, 2.0]), 0.1, mat)?;
@@ -219,6 +223,7 @@ impl World {
             joint,
             debug_arrows,
             car,
+            wheel,
             _font: font,
             t,
         })
@@ -241,6 +246,11 @@ impl World {
         self.camera.update(&ctx)?;
         //self.player.update(&ctx)?;
         //self.car.update(&ctx)?;
+        self.wheel.update(&ctx, &mut self.physics)?;
+
+        if let Some(wheel) = self.physics.get_body_mut(self.wheel.id()) {
+            wheel.apply_force(GRAVITY * wheel.mass());
+        }
 
         if let Some(sphere_b) = self.physics.get_body_mut(self.sphere_b.id()) {
             sphere_b.apply_force(GRAVITY * sphere_b.mass());
@@ -258,10 +268,8 @@ impl World {
         //self.car.integrate_positions(ctx.dt_secs());
 
         self.player.update_debug_arrows(&mut self.render_context)?;
-
-        //let (forward, position) = self.player.transform();
-        //let (forward, position) = self.car.transform();
-        //let (forward, position) = (V4::X2, V4::ZERO);
+        self.wheel.update_debug_arrows(&mut self.render_context)?;
+        self.wheel.update_render_objects(&self.physics)?;
 
         let position = if let Some(sphere_b) = self.physics.get_body_mut(self.sphere_b.id()) {
             V4::from_v3(sphere_b.position(), 1.0)
@@ -277,6 +285,7 @@ impl World {
 
         let joint = self.physics.get_joint_mut(self.joint).unwrap();
         joint.update_motor(motor_speed, max_torque);
+
         match joint {
             Joint::Distance { joint, .. } => {
                 let mesh = create_text_mesh(&self._font, &format!("{:.2}", joint.error))?;
@@ -316,8 +325,11 @@ impl World {
             }
         }
 
-        let forward = V4::X2;
-        //let position = V4::X3;
+        //let (forward, position) = self.player.transform();
+        //let (forward, position) = self.car.transform();
+        let (forward, position) = self.wheel.transform();
+        //let (forward, position) = (V4::X2, V4::ZERO);
+
         self.camera.look_at(position, forward);
         Ok(())
     }
@@ -328,16 +340,18 @@ impl World {
 
     pub fn objects(&self) -> Vec<RenderObject> {
         let mut objects = self.terrain_chunks.clone();
-        objects.extend(self.terrain_normal_arrows.iter().cloned());
-        objects.extend(self.player.objects.iter().cloned());
-        objects.extend(self.player.debug_arrows.iter().cloned());
+        //objects.extend(self.terrain_normal_arrows.iter().cloned());
+        //objects.extend(self.player.objects.iter().cloned());
+        //objects.extend(self.player.debug_arrows.iter().cloned());
         objects.push(self.debug.clone());
-        objects.extend(self.car.objects.iter().cloned());
-        objects.push(self.sphere_a.object.clone());
-        objects.push(self.sphere_a.debug_arrow.clone());
-        objects.push(self.sphere_b.object.clone());
-        objects.push(self.sphere_b.debug_arrow.clone());
-        objects.extend(self.debug_arrows.iter().cloned());
+        //objects.extend(self.car.objects.iter().cloned());
+        objects.push(self.wheel.object.clone());
+        objects.extend(self.wheel.debug_arrows.iter().cloned());
+        //objects.push(self.sphere_a.object.clone());
+        //objects.push(self.sphere_a.debug_arrow.clone());
+        //objects.push(self.sphere_b.object.clone());
+        //objects.push(self.sphere_b.debug_arrow.clone());
+        //objects.extend(self.debug_arrows.iter().cloned());
 
         objects
     }

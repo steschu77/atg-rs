@@ -49,6 +49,31 @@ impl Mass {
     }
 
     // ------------------------------------------------------------------------
+    pub fn from_cylinder(density: f32, radius: f32, height: f32) -> Result<Self> {
+        if !density.is_positive() || !radius.is_positive() || !height.is_positive() {
+            return Err(Error::InvalidData);
+        }
+        let volume = std::f32::consts::PI * radius * radius * height;
+        let mass = density * volume;
+        let inertia_xz = mass * (3.0 * radius * radius + height * height) / 12.0;
+        let inertia_y = mass * radius * radius / 2.0;
+        Ok(Self::build_v3(
+            mass,
+            V3::new([inertia_xz, inertia_y, inertia_xz]),
+        ))
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn from_wheel(mass: f32, radius: f32) -> Result<Self> {
+        if !mass.is_positive() || !radius.is_positive() {
+            return Err(Error::InvalidData);
+        }
+        let k = 0.8; // empirical factor to reduce inertia for better stability
+        let inertia = k * mass * radius * radius;
+        Ok(Self::build_scalar(mass, inertia))
+    }
+
+    // ------------------------------------------------------------------------
     pub fn mass(&self) -> f32 {
         self.mass
     }

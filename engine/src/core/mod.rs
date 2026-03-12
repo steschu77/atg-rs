@@ -18,6 +18,7 @@ pub mod input;
 pub mod player;
 pub mod sphere;
 pub mod terrain;
+pub mod wheel;
 pub mod world;
 
 // ----------------------------------------------------------------------------
