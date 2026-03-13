@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Copy, Clone)]
 pub struct Softness {
     pub bias_rate: f32,
     pub mass_scale: f32,

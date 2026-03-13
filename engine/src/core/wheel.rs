@@ -104,7 +104,13 @@ impl Wheel {
 
         let wheel_material = x2d::RUBBER;
         let wheel_mass = Mass::from_wheel(wheel_material.density, wheel_radius)?;
-        let mut wheel_body = RigidBody::new(wheel_mass, wheel_material, position, Q::identity());
+        let mut wheel_body = RigidBody::new(
+            String::from("wheel"),
+            wheel_mass,
+            wheel_material,
+            position,
+            Q::identity(),
+        );
         wheel_body.apply_angular_impulse(V3::X0 * 1000.0, "initial_impulse");
         let body_id = physics.add_body(wheel_body);
 
@@ -197,11 +203,10 @@ impl Wheel {
                 wheel_radius: self.radius,
                 contact_point: point,
                 basis,
+                normal,
                 penetration,
-                normal_force: 400.0,
+                normal_force: 100.0,
                 friction: 0.8,
-                drive_torque: self.drive_torque,
-                brake_torque: self.brake_torque,
             };
 
             if let Some(contact_id) = self.contact_id {

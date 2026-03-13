@@ -1,14 +1,23 @@
-use crate::v2d::{affine3x3, m3x3::M3x3, v3::V3};
+use crate::v2d::{m3x3::M3x3, v3::V3};
 use crate::x2d::constraint::softness::Softness;
 use crate::x2d::rigid_body::RigidBody;
+
+// ----------------------------------------------------------------------------
+const IMPULSE_NAME: [&str; 6] = [
+    "wheel_slider_1",
+    "wheel_slider_2",
+    "wheel_suspension",
+    "wheel_ang_motor",
+    "wheel_ang_forward",
+    "wheel_ang_suspension",
+];
 
 // ----------------------------------------------------------------------------
 #[derive(Debug, Clone)]
 pub struct WheelJoint {
     pub local_anchor_a: V3,
     pub local_anchor_b: V3,
-    pub local_axis_b: V3,
-    pub motor_axis_b: V3,
+    pub world_basis: M3x3,
 
     pub rest_length: f32,
     pub softness: Softness,
@@ -16,21 +25,19 @@ pub struct WheelJoint {
     pub motor_speed: f32,
     pub max_motor_torque: f32,
 
-    accumulated_lambda: [f32; 4],
-    effective_mass: [f32; 4],
-    bias: [f32; 4],
+    pub accumulated_lambda: [f32; 6],
+    pub effective_mass: [f32; 6],
+    pub bias: [f32; 6],
 
-    n: [V3; 4],
+    pub n: [V3; 6],
 
-    r_a: V3,
-    r_b: V3,
+    pub r_a: V3,
+    pub r_b: V3,
 
     pub world_anchor_a: V3,
     pub world_anchor_b: V3,
 
-    basis: M3x3,
-
-    pub error: [f32; 4],
+    pub error: [f32; 6],
 }
 
 // ----------------------------------------------------------------------------
@@ -39,18 +46,14 @@ impl WheelJoint {
     pub fn new(
         local_anchor_a: V3,
         local_anchor_b: V3,
-        local_axis_b: V3,
-        motor_axis_b: V3,
+        world_basis: M3x3,
         rest_length: f32,
         softness: Softness,
     ) -> Self {
-        let basis = affine3x3::basis_from_x0(local_axis_b);
-
         Self {
             local_anchor_a,
             local_anchor_b,
-            local_axis_b: local_axis_b.norm(),
-            motor_axis_b: motor_axis_b.norm(),
+            world_basis,
 
             rest_length,
             softness,
@@ -58,11 +61,11 @@ impl WheelJoint {
             motor_speed: 0.0,
             max_motor_torque: 0.0,
 
-            accumulated_lambda: [0.0; 4],
-            effective_mass: [0.0; 4],
-            bias: [0.0; 4],
+            accumulated_lambda: [0.0; 6],
+            effective_mass: [0.0; 6],
+            bias: [0.0; 6],
 
-            n: [V3::zero(); 4],
+            n: [V3::zero(); 6],
 
             r_a: V3::zero(),
             r_b: V3::zero(),
@@ -70,8 +73,7 @@ impl WheelJoint {
             world_anchor_a: V3::zero(),
             world_anchor_b: V3::zero(),
 
-            basis,
-            error: [0.0; 4],
+            error: [0.0; 6],
         }
     }
 
@@ -79,6 +81,11 @@ impl WheelJoint {
     pub fn update_motor(&mut self, motor_speed: f32, max_motor_torque: f32) {
         self.motor_speed = motor_speed;
         self.max_motor_torque = max_motor_torque;
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn update_basis(&mut self, basis: M3x3) {
+        self.world_basis = basis;
     }
 
     // ------------------------------------------------------------------------
@@ -92,12 +99,14 @@ impl WheelJoint {
         let w_a = body_a.angular_velocity();
         let w_b = body_b.angular_velocity();
 
-        let axis = body_b.orientation().rotate(self.basis.col0()).norm();
-        let n1 = body_b.orientation().rotate(self.basis.col1()).norm();
-        let n2 = body_b.orientation().rotate(self.basis.col2()).norm();
-        let n3 = body_b.orientation().rotate(self.motor_axis_b).norm();
-
-        self.n = [n1, n2, axis, n3];
+        self.n = [
+            self.world_basis.col0(), // lateral
+            self.world_basis.col2(), // forward
+            self.world_basis.col1(), // suspension
+            self.world_basis.col0(), // motor
+            self.world_basis.col2(), // forward
+            self.world_basis.col1(), // suspension
+        ];
 
         let inv_mass_a = body_a.inv_mass();
         let inv_mass_b = body_b.inv_mass();
@@ -130,26 +139,42 @@ impl WheelJoint {
             }
         }
 
-        // motor constraint
-        let k = self.n[3] * (inv_inertia_a + inv_inertia_b) * self.n[3];
-        self.effective_mass[3] = if k > f32::EPSILON { 1.0 / k } else { 0.0 };
-        self.error[3] = (w_b - w_a).dot(self.n[3]) - self.motor_speed;
+        // angular constraints
+        for i in 3..6 {
+            let n = self.n[i];
+            let k = n * (inv_inertia_a + inv_inertia_b) * n;
+            self.effective_mass[i] = if k > f32::EPSILON { 1.0 / k } else { 0.0 };
+            self.error[i] = (w_b - w_a).dot(n);
+        }
+
+        log::info!(
+            "wheel_pre_step[{}/{}] lateral: {}, forward: {}, suspension: {}, motor: {}",
+            body_a.name(),
+            body_b.name(),
+            self.n[0],
+            self.n[1],
+            self.n[2],
+            self.n[3],
+        );
     }
 
     // ------------------------------------------------------------------------
     pub fn warm_start(&self, body_a: &mut RigidBody, body_b: &mut RigidBody) {
+        #[allow(clippy::needless_range_loop)]
         for i in 0..3 {
             let impulse = self.n[i] * self.accumulated_lambda[i];
 
-            body_a.apply_impulse_at(impulse, self.world_anchor_a, "wheel_warm_start");
-            body_b.apply_impulse_at(-impulse, self.world_anchor_b, "wheel_warm_start");
+            let info = format!("warm_start_{}", IMPULSE_NAME[i]);
+            body_a.apply_impulse_at(impulse, self.world_anchor_a, &info);
+            body_b.apply_impulse_at(-impulse, self.world_anchor_b, &info);
         }
 
-        if self.max_motor_torque > 0.0 {
-            let impulse = self.n[3] * self.accumulated_lambda[3];
-
-            body_a.apply_angular_impulse(-impulse, "wheel_motor_warm_start");
-            body_b.apply_angular_impulse(impulse, "wheel_motor_warm_start");
+        #[allow(clippy::needless_range_loop)]
+        for i in 3..6 {
+            let impulse = self.n[i] * self.accumulated_lambda[i];
+            let info = format!("warm_start_{}", IMPULSE_NAME[i]);
+            body_a.apply_angular_impulse(-impulse, &info);
+            body_b.apply_angular_impulse(impulse, &info);
         }
     }
 
@@ -158,6 +183,7 @@ impl WheelJoint {
         let v_a = body_a.velocity_at(self.world_anchor_a);
         let v_b = body_b.velocity_at(self.world_anchor_b);
 
+        #[allow(clippy::needless_range_loop)]
         for i in 0..3 {
             let c_dot = self.n[i].dot(v_a - v_b);
 
@@ -180,11 +206,11 @@ impl WheelJoint {
 
             let impulse = self.n[i] * lambda;
 
-            body_a.apply_impulse_at(impulse, self.world_anchor_a, "wheel_solve");
-            body_b.apply_impulse_at(-impulse, self.world_anchor_b, "wheel_solve");
+            body_a.apply_impulse_at(impulse, self.world_anchor_a, IMPULSE_NAME[i]);
+            body_b.apply_impulse_at(-impulse, self.world_anchor_b, IMPULSE_NAME[i]);
         }
 
-        if self.max_motor_torque > 0.0 {
+        {
             let w_a = body_a.angular_velocity();
             let w_b = body_b.angular_velocity();
 
@@ -192,20 +218,50 @@ impl WheelJoint {
             let lambda = -c_dot * self.effective_mass[3];
 
             let max_lambda = self.max_motor_torque * dt;
-
             let old_lambda = self.accumulated_lambda[3];
             self.accumulated_lambda[3] = (old_lambda + lambda).clamp(-max_lambda, max_lambda);
 
             let lambda = self.accumulated_lambda[3] - old_lambda;
             let impulse = self.n[3] * lambda;
 
-            body_a.apply_angular_impulse(-impulse, "wheel_motor");
-            body_b.apply_angular_impulse(impulse, "wheel_motor");
+            body_a.apply_angular_impulse(-impulse, IMPULSE_NAME[3]);
+            body_b.apply_angular_impulse(impulse, IMPULSE_NAME[3]);
         }
+
+        #[allow(clippy::needless_range_loop)]
+        for i in 4..6 {
+            let n = self.n[i];
+
+            let w_a = body_a.angular_velocity();
+            let w_b = body_b.angular_velocity();
+
+            let c_dot = (w_b - w_a).dot(n);
+            let lambda = -c_dot * self.effective_mass[i];
+
+            self.accumulated_lambda[i] += lambda;
+
+            let impulse = n * lambda;
+
+            body_a.apply_angular_impulse(-impulse, IMPULSE_NAME[i]);
+            body_b.apply_angular_impulse(impulse, IMPULSE_NAME[i]);
+        }
+
+        log::info!(
+            "wheel_solve[{}] vel: {:.2}, angular_vel: {:.2}",
+            body_a.name(),
+            body_a.linear_velocity(),
+            body_a.angular_velocity(),
+        );
+        log::info!(
+            "wheel_solve[{}] vel: {:.2}, angular_vel: {:.2}",
+            body_b.name(),
+            body_b.linear_velocity(),
+            body_b.angular_velocity(),
+        );
     }
 
     // ------------------------------------------------------------------------
     pub fn reset(&mut self) {
-        self.accumulated_lambda = [0.0; 4];
+        self.accumulated_lambda = [0.0; 6];
     }
 }

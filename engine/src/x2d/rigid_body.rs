@@ -32,6 +32,8 @@ pub fn from_angular_velocity(omega_dt: V3) -> Q {
 // ----------------------------------------------------------------------------
 #[derive(Debug, Clone)]
 pub struct RigidBody {
+    name: String,
+
     mass: Mass,
     material: Material,
 
@@ -50,8 +52,9 @@ pub struct RigidBody {
 // ----------------------------------------------------------------------------
 impl RigidBody {
     // ------------------------------------------------------------------------
-    pub fn new(mass: Mass, material: Material, pos: V3, rot: Q) -> Self {
+    pub fn new(name: String, mass: Mass, material: Material, pos: V3, rot: Q) -> Self {
         Self {
+            name,
             mass,
             material,
             position: pos,
@@ -62,6 +65,11 @@ impl RigidBody {
             torque_accu: V3::zero(),
             inv_inertia_world: Self::update_inertia_world(rot, mass.inv_inertia()),
         }
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     // ------------------------------------------------------------------------
@@ -128,13 +136,16 @@ impl RigidBody {
 
     // ------------------------------------------------------------------------
     pub fn apply_force(&mut self, force: V3) {
-        log::info!("RigidBody::apply_force(force: {force})");
+        log::info!("[{name}]::apply_force(force: {force})", name = self.name);
         self.force_accu += force;
     }
 
     // ------------------------------------------------------------------------
     pub fn apply_force_at(&mut self, force: V3, world_pt: V3) {
-        log::info!("RigidBody::apply_force_at(force: {force}, world_pt: {world_pt})");
+        log::info!(
+            "[{name}]::apply_force_at(force: {force}, world_pt: {world_pt})",
+            name = self.name
+        );
         self.force_accu += force;
 
         let r = world_pt - self.position;
@@ -143,13 +154,19 @@ impl RigidBody {
 
     // ------------------------------------------------------------------------
     pub fn apply_impulse(&mut self, impulse: V3, reason: &str) {
-        log::info!("RigidBody::impulse[{reason}](impulse: {impulse})");
+        log::info!(
+            "[{name}]::impulse[{reason}](impulse: {impulse})",
+            name = self.name
+        );
         self.linear_vel += impulse * self.inv_mass();
     }
 
     // ------------------------------------------------------------------------
     pub fn apply_impulse_at(&mut self, impulse: V3, world_pt: V3, reason: &str) {
-        log::info!("RigidBody::impulse[{reason}](impulse: {impulse}, pt: {world_pt})");
+        log::info!(
+            "[{name}]::impulse[{reason}](impulse: {impulse}, pt: {world_pt})",
+            name = self.name
+        );
 
         // Linear velocity
         self.linear_vel += impulse * self.inv_mass();
@@ -163,7 +180,10 @@ impl RigidBody {
 
     // ------------------------------------------------------------------------
     pub fn apply_angular_impulse(&mut self, impulse: V3, reason: &str) {
-        log::info!("RigidBody::angular_impulse[{reason}](impulse: {impulse})");
+        log::info!(
+            "[{name}]::angular_impulse[{reason}](impulse: {impulse})",
+            name = self.name
+        );
         self.angular_vel += self.inv_inertia() * impulse;
     }
 
@@ -176,7 +196,8 @@ impl RigidBody {
         self.angular_vel += ang_accel * dt;
 
         log::info!(
-            "RigidBody::integrate_forces(dt: {dt}) → force: {}, torque: {}, linear_vel: {}, angular_vel: {}",
+            "[{}]::integrate_forces(dt: {dt}) → force: {}, torque: {}, linear_vel: {}, angular_vel: {}",
+            self.name,
             self.force_accu,
             self.torque_accu,
             self.linear_vel,
@@ -198,7 +219,8 @@ impl RigidBody {
             Self::update_inertia_world(self.orientation, self.mass.inv_inertia());
 
         log::info!(
-            "RigidBody::integrate_vel(dt: {dt}) → pos: {}, rot: {}",
+            "[{}]::integrate_vel(dt: {dt}) → pos: {}, rot: {}",
+            self.name,
             self.position,
             self.orientation,
         );
@@ -249,6 +271,7 @@ mod tests {
     #[test]
     fn rigid_body_no_force_no_move() {
         let mut body = RigidBody::new(
+            String::from("test"),
             Mass::new(1.0, V3::one()).unwrap(),
             Material::default(),
             V3::zero(),
@@ -265,6 +288,7 @@ mod tests {
     #[test]
     fn rigid_body_constant_force_accelerates_linearly() {
         let mut body = RigidBody::new(
+            String::from("test"),
             Mass::new(2.0, V3::one()).unwrap(),
             Material::default(),
             V3::zero(),
@@ -291,6 +315,7 @@ mod tests {
     #[test]
     fn test_rigid_body() {
         let mut body = RigidBody::new(
+            String::from("test"),
             Mass::new(1.0, V3::one()).unwrap(),
             Material::default(),
             V3::zero(),
@@ -309,6 +334,7 @@ mod tests {
     #[test]
     fn to_local_to_world_identity() {
         let body = RigidBody::new(
+            String::from("test"),
             Mass::new(1.0, V3::one()).unwrap(),
             Material::default(),
             V3::zero(),
@@ -324,6 +350,7 @@ mod tests {
     #[test]
     fn to_local_to_world_translation_only() {
         let body = RigidBody::new(
+            String::from("test"),
             Mass::new(1.0, V3::one()).unwrap(),
             Material::default(),
             V3::new([10.0, 0.0, 0.0]),
@@ -342,6 +369,7 @@ mod tests {
         let rot = Q::from_axis_angle(V3::X2, std::f32::consts::FRAC_PI_2);
 
         let body = RigidBody::new(
+            String::from("test"),
             Mass::new(1.0, V3::one()).unwrap(),
             Material::default(),
             V3::zero(),
@@ -360,6 +388,7 @@ mod tests {
         let rot = Q::from_axis_angle(V3::X2, 0.7);
 
         let body = RigidBody::new(
+            String::from("test"),
             Mass::new(1.0, V3::one()).unwrap(),
             Material::default(),
             V3::new([3.0, -2.0, 5.0]),
@@ -376,6 +405,7 @@ mod tests {
     #[test]
     fn angular_velocity_world_space_rotation_direction() {
         let mut body = RigidBody::new(
+            String::from("test"),
             Mass::new(1.0, V3::one()).unwrap(),
             Material::default(),
             V3::zero(),
@@ -403,6 +433,7 @@ mod tests {
     #[test]
     fn apply_impulse_linear_only() {
         let mut body = RigidBody::new(
+            String::from("test"),
             Mass::new(2.0, V3::one()).unwrap(),
             Material::default(),
             V3::zero(),
@@ -429,6 +460,7 @@ mod tests {
     #[test]
     fn apply_impulse_at_generates_angular_velocity() {
         let mut body = RigidBody::new(
+            String::from("test"),
             Mass::new(1.0, V3::one()).unwrap(),
             Material::default(),
             V3::zero(),
@@ -448,6 +480,7 @@ mod tests {
     // If this fails → cross product or inertia is wrong.
     fn equal_opposite_impulses_pure_rotation() {
         let mut body = RigidBody::new(
+            String::from("test"),
             Mass::new(1.0, V3::one()).unwrap(),
             Material::default(),
             V3::zero(),
@@ -472,6 +505,7 @@ mod tests {
     // If this drifts → integration is wrong.
     fn linear_momentum_conserved() {
         let mut body = RigidBody::new(
+            String::from("test"),
             Mass::new(2.0, V3::one()).unwrap(),
             Material::default(),
             V3::zero(),
@@ -496,6 +530,7 @@ mod tests {
     // If symmetry breaks → matrix multiplication issue.
     fn inertia_tensor_stays_symmetric() {
         let mut body = RigidBody::new(
+            String::from("test"),
             Mass::new(1.0, V3::new([2.0, 3.0, 4.0])).unwrap(),
             Material::default(),
             V3::zero(),
@@ -517,6 +552,7 @@ mod tests {
     #[test]
     fn asymmetric_body_free_spin_conserves_angular_momentum() {
         let mut body = RigidBody::new(
+            String::from("test"),
             Mass::new(1.0, V3::new([2.0, 2.1, 2.0])).unwrap(),
             Material::default(),
             V3::zero(),
@@ -539,6 +575,7 @@ mod tests {
     #[test]
     fn conserve_kinetic_energy() {
         let mut body = RigidBody::new(
+            String::from("test"),
             Mass::new(2.0, V3::one()).unwrap(),
             Material::default(),
             V3::zero(),
@@ -562,6 +599,7 @@ mod tests {
     #[test]
     fn stress_free_spin_stability() {
         let mut body = RigidBody::new(
+            String::from("test"),
             Mass::new(1.0, V3::new([2.0, 3.0, 4.0])).unwrap(),
             Material::default(),
             V3::zero(),

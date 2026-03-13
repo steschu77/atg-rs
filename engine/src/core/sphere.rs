@@ -20,7 +20,13 @@ impl PhysicsSphere {
     pub fn new_body(position: V3, radius: f32, mat: Material) -> Result<RigidBody> {
         let density = mat.density;
         let mass = Mass::from_sphere(density, radius)?;
-        Ok(RigidBody::new(mass, mat, position, Q::identity()))
+        Ok(RigidBody::new(
+            String::from("sphere"),
+            mass,
+            mat,
+            position,
+            Q::identity(),
+        ))
     }
 
     pub fn new_sphere(context: &mut RenderContext, body_id: BodyId, radius: f32) -> Result<Self> {
