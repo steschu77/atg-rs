@@ -7,11 +7,10 @@ pub struct TireContext {
     pub wheel_radius: f32,
     pub contact_point: V3,
     pub basis: M3x3,
+    pub normal: V3,
     pub penetration: f32,
     pub normal_force: f32,
     pub friction: f32,
-    pub drive_torque: f32,
-    pub brake_torque: f32,
 }
 
 // ----------------------------------------------------------------------------
@@ -25,6 +24,8 @@ pub struct TireContact {
 
     bias: f32,
     normal_lambda: f32,
+    lateral_lambda: f32,
+    forward_lambda: f32,
 }
 
 // ----------------------------------------------------------------------------
@@ -38,6 +39,8 @@ impl TireContact {
             eff_mass_lateral: 0.0,
             bias: 0.0,
             normal_lambda: 0.0,
+            lateral_lambda: 0.0,
+            forward_lambda: 0.0,
         }
     }
 
@@ -52,7 +55,6 @@ impl TireContact {
         let inv_mass = body.inv_mass();
         let inv_inertia = body.inv_inertia();
 
-        let lateral = self.context.basis.col0();
         let normal = self.context.basis.col1();
         let forward = self.context.basis.col2();
 
@@ -60,11 +62,10 @@ impl TireContact {
 
         let rn_forward = r.cross(forward);
         let rn_normal = r.cross(normal);
-        let rn_lateral = r.cross(lateral);
 
         let k_forward = inv_mass + rn_forward * inv_inertia * rn_forward;
         let k_normal = inv_mass + rn_normal * inv_inertia * rn_normal;
-        let k_lateral = inv_mass + rn_lateral * inv_inertia * rn_lateral;
+        let k_lateral = inv_mass;
 
         self.eff_mass_forward = if k_forward > 0.0 {
             1.0 / k_forward
@@ -81,16 +82,37 @@ impl TireContact {
         };
 
         self.bias = -(0.1 / dt) * self.context.penetration.max(0.0);
+
+        log::info!(
+            "tire_pre_step[{}] lateral: {}, normal: {}, forward: {}",
+            body.name(),
+            self.context.basis.col0(),
+            self.context.basis.col1(),
+            self.context.basis.col2(),
+        );
     }
 
     // ------------------------------------------------------------------------
     pub fn warm_start(&self, body: &mut RigidBody) {
         let normal = self.context.basis.col1();
-
         body.apply_impulse_at(
             normal * self.normal_lambda,
             self.context.contact_point,
             "tire_normal",
+        );
+
+        let lateral = self.context.basis.col0();
+        body.apply_impulse_at(
+            lateral * self.lateral_lambda,
+            self.context.contact_point,
+            "tire_lateral",
+        );
+
+        let forward = self.context.basis.col2();
+        body.apply_impulse_at(
+            forward * self.forward_lambda,
+            self.context.contact_point,
+            "tire_forward",
         );
     }
 
@@ -99,37 +121,44 @@ impl TireContact {
         let max_lambda = self.context.friction * self.context.normal_force * dt;
 
         let v = body.velocity_at(self.context.contact_point);
+        let lin_v = body.linear_velocity();
 
         let lateral = self.context.basis.col0();
         let normal = self.context.basis.col1();
         let forward = self.context.basis.col2();
 
-        let lateral_speed = lateral.dot(v);
+        let lateral_speed = lateral.dot(lin_v);
         let forward_speed = forward.dot(v);
+        let normal_speed = normal.dot(v);
+
+        log::info!(
+            "tire_solve[{}] vel at {}: {v}, lateral_speed: {}, forward_speed: {}, normal_speed: {}",
+            body.name(),
+            self.context.contact_point,
+            lateral_speed,
+            forward_speed,
+            normal_speed
+        );
 
         let mut lambda = -lateral_speed * self.eff_mass_lateral;
-
-        lambda = lambda.clamp(-max_lambda, max_lambda);
+        let old_lambda = self.lateral_lambda;
+        self.lateral_lambda = (old_lambda + lambda).clamp(-max_lambda, max_lambda);
+        lambda = self.lateral_lambda - old_lambda;
 
         body.apply_impulse_at(lateral * lambda, self.context.contact_point, "tire_lateral");
 
         let mut lambda = -forward_speed * self.eff_mass_forward;
-
-        lambda = lambda.clamp(-max_lambda, max_lambda);
+        let old_lambda = self.forward_lambda;
+        self.forward_lambda = (old_lambda + lambda).clamp(-max_lambda, max_lambda);
+        lambda = self.forward_lambda - old_lambda;
 
         body.apply_impulse_at(forward * lambda, self.context.contact_point, "tire_forward");
 
-        let c_dot = normal.dot(v);
-        let mut lambda = -(c_dot + self.bias) * self.eff_mass_normal;
-
+        let mut lambda = -(normal_speed + self.bias) * self.eff_mass_normal;
         let old_lambda = self.normal_lambda;
         self.normal_lambda = (old_lambda + lambda).max(0.0);
         lambda = self.normal_lambda - old_lambda;
 
-        body.apply_impulse_at(
-            normal * lambda,
-            self.context.contact_point,
-            "contact_normal",
-        );
+        body.apply_impulse_at(normal * lambda, self.context.contact_point, "tire_normal");
     }
 }

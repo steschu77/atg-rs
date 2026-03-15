@@ -1,11 +1,16 @@
-use crate::core::component::{Component, Context};
+use crate::core::component::Context;
 use crate::core::game_input::GameKey;
+use crate::core::gl_pipeline_colored::arrow;
 use crate::core::gl_renderer::{
     DefaultMaterials, DefaultMeshes, RenderContext, RenderObject, Transform,
 };
-use crate::error::Result;
-use crate::v2d::{affine3x3, m3x3::M3x3, q::Q, v3::V3, v4::V4};
-use crate::x2d::{self, mass::Mass, rigid_body::RigidBody};
+use crate::error::{Error, Result};
+use crate::v2d::{m3x3::M3x3, q::Q, v3::V3, v4::V4};
+use crate::x2d::{
+    self, BodyId, ContactId, JointId, constraint::contact::Contact, constraint::joint::Joint,
+    constraint::softness::Softness, constraint::tire_contact::TireContext, mass::Mass,
+    physics::Physics, rigid_body::RigidBody,
+};
 
 // ----------------------------------------------------------------------------
 #[derive(Debug, Clone, Default)]
@@ -23,53 +28,6 @@ pub struct Geometry {
 pub const GRAVITY: V3 = V3::new([0.0, -9.81, 0.0]);
 
 // ----------------------------------------------------------------------------
-#[derive(Debug, Clone, Default)]
-pub struct ChassisData {
-    pub steering_angle: f32,
-}
-
-// ----------------------------------------------------------------------------
-#[derive(Debug, Clone)]
-pub struct WheelData {
-    pub wheel: WheelPos,
-    pub position: V3,
-    pub radius: f32,
-    pub width: f32,
-    pub spin_angle: f32,
-    pub rest_length: f32,
-    pub spring_k: f32,
-    pub damper_c: f32,
-    pub compression: f32,
-    pub grip: f32,
-    pub angular_velocity: f32,
-    pub inertia: f32,
-    pub drive_torque: f32,
-    pub brake_torque: f32,
-}
-
-// ----------------------------------------------------------------------------
-impl Default for WheelData {
-    fn default() -> Self {
-        Self {
-            wheel: WheelPos::FL,
-            position: V3::zero(),
-            radius: 0.3,
-            width: 0.2,
-            spin_angle: 0.0,
-            rest_length: 0.8,
-            spring_k: 18_000.0,
-            damper_c: 2_100.0,
-            compression: 0.0,
-            grip: 5.0 * 8.0,
-            angular_velocity: 0.0,
-            inertia: 0.5 * 20.0 * 0.3 * 0.3,
-            drive_torque: 0.0,
-            brake_torque: 0.0,
-        }
-    }
-}
-
-// ----------------------------------------------------------------------------
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum WheelPos {
     FL,
@@ -79,14 +37,16 @@ pub enum WheelPos {
 }
 
 // ----------------------------------------------------------------------------
-impl From<usize> for WheelPos {
-    fn from(value: usize) -> Self {
-        match value {
-            0 => WheelPos::FL,
-            1 => WheelPos::FR,
-            2 => WheelPos::RL,
-            3 => WheelPos::RR,
-            _ => panic!("Invalid wheel index: {}", value),
+impl TryFrom<usize> for WheelPos {
+    type Error = Error;
+
+    fn try_from(index: usize) -> Result<Self> {
+        match index {
+            0 => Ok(WheelPos::FL),
+            1 => Ok(WheelPos::FR),
+            2 => Ok(WheelPos::RL),
+            3 => Ok(WheelPos::RR),
+            _ => Err(Error::InvalidIndex { index }),
         }
     }
 }
@@ -119,20 +79,6 @@ impl WheelPos {
         }
     }
 
-    pub fn sign_lr(self) -> f32 {
-        match self {
-            WheelPos::FL | WheelPos::RL => -1.0,
-            WheelPos::FR | WheelPos::RR => 1.0,
-        }
-    }
-
-    pub fn sign_fb(self) -> f32 {
-        match self {
-            WheelPos::FL | WheelPos::FR => 1.0,
-            WheelPos::RL | WheelPos::RR => -1.0,
-        }
-    }
-
     pub fn is_front(self) -> bool {
         match self {
             WheelPos::FL | WheelPos::FR => true,
@@ -146,19 +92,88 @@ impl WheelPos {
             WheelPos::RL | WheelPos::RR => true,
         }
     }
+
+    pub fn sign_lr(self) -> f32 {
+        match self {
+            WheelPos::FL | WheelPos::RL => -1.0,
+            WheelPos::FR | WheelPos::RR => 1.0,
+        }
+    }
+
+    pub fn sign_fb(self) -> f32 {
+        match self {
+            WheelPos::FL | WheelPos::FR => 1.0,
+            WheelPos::RL | WheelPos::RR => -1.0,
+        }
+    }
 }
 
 // ----------------------------------------------------------------------------
-fn wheel_basis_static(body: &RigidBody) -> (V3, V3) {
-    let forward = body.orientation().rotate(V3::X2);
-    let right = body.orientation().rotate(V3::X0);
+#[derive(Debug, Clone)]
+pub struct WheelData {
+    pub wheel: WheelPos,
+    pub local_position: V3,
+    pub radius: f32,
+    pub width: f32,
+    pub drive_torque: f32,
+    pub brake_torque: f32,
+    pub normal_force: f32,
+    pub body: BodyId,
+    pub wheel_joint: JointId,
+    pub contact_id: Option<ContactId>,
+}
+
+// ----------------------------------------------------------------------------
+impl WheelData {
+    fn new(
+        wheel: WheelPos,
+        local_position: V3,
+        body: BodyId,
+        wheel_joint: JointId,
+        radius: f32,
+        width: f32,
+    ) -> Self {
+        Self {
+            wheel,
+            local_position,
+            radius,
+            width,
+            drive_torque: 0.0,
+            brake_torque: 0.0,
+            normal_force: 0.0,
+            body,
+            wheel_joint,
+            contact_id: None,
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+#[derive(Debug)]
+pub struct Car {
+    pub chassis: BodyId,
+    pub wheels: Vec<WheelData>,
+    pub objects: [RenderObject; 5],
+    pub debug_arrows: [RenderObject; 4],
+    pub geometry: Geometry,
+    pub steering_angle: f32,
+    pub drive_torque: f32,
+    pub brake_torque: f32,
+    pub chassis_position: V3,
+    pub chassis_orientation: Q,
+}
+
+// ----------------------------------------------------------------------------
+fn wheel_basis_static(orientation: Q) -> (V3, V3) {
+    let forward = orientation.rotate(V3::X2);
+    let right = orientation.rotate(V3::X0);
     (forward, right)
 }
 
 // ----------------------------------------------------------------------------
-fn wheel_basis_steering(body: &RigidBody, steer_angle: f32) -> (V3, V3) {
-    let car_forward = body.orientation().rotate(V3::X2);
-    let car_up = body.orientation().rotate(V3::X1);
+fn wheel_basis_steering(orientation: Q, steer_angle: f32) -> (V3, V3) {
+    let car_forward = orientation.rotate(V3::X2);
+    let car_up = orientation.rotate(V3::X1);
 
     let steer_q = Q::from_axis_angle(car_up, steer_angle);
     let forward = steer_q.rotate(car_forward).norm();
@@ -169,158 +184,38 @@ fn wheel_basis_steering(body: &RigidBody, steer_angle: f32) -> (V3, V3) {
 
 // ----------------------------------------------------------------------------
 // Simple raycast for ground plane at y=0. Sophisticated terrain raycasting comes later.
-fn raycast_down(origin: V3, max_dist: f32) -> Option<f32> {
-    if origin.x1() <= 0.0 {
-        return Some(0.0);
+fn raycast_ground(origin: V3, dir: V3, max_dist: f32) -> Option<(V3, V3, f32)> {
+    if dir.x1() >= 0.0 {
+        return None;
     }
 
-    let hit_dist = origin.x1();
+    let t = -origin.x1() / dir.x1();
 
-    if hit_dist <= max_dist {
-        Some(hit_dist)
-    } else {
-        None
-    }
-}
-
-// ----------------------------------------------------------------------------
-fn apply_wheel_suspension(
-    body: &mut RigidBody,
-    wheel: &mut WheelData,
-    steer_angle: f32,
-    brake_strength: f32,
-    dt: f32,
-) {
-    let wheel_pos = body.to_world(wheel.position);
-    let ray_len = wheel.rest_length + wheel.radius;
-
-    if let Some(hit_dist) = raycast_down(wheel_pos, ray_len) {
-        let compression = wheel.rest_length - (hit_dist - wheel.radius);
-        let compression = compression.max(0.0);
-
-        let up = body.orientation().rotate(V3::X1);
-        let r = wheel_pos - body.position();
-        let v = body.velocity_at(wheel_pos);
-
-        let rel_vel = v.dot(up);
-
-        // Effective mass
-        let rn = r.cross(up);
-        let inv_mass = body.inv_mass();
-        let inv_inertia = body.inv_inertia();
-
-        let k = inv_mass + rn.dot(inv_inertia * rn);
-        if k <= 0.0 {
-            return;
-        }
-
-        let effective_mass = 1.0 / k;
-
-        // Baumgarte bias (stabilization)
-        let beta = 0.5;
-        let slop = 0.01;
-        let corrected = (compression - slop).max(0.0);
-        let bias = beta * corrected / dt;
-
-        // Solve velocity constraint
-        let lambda = -(rel_vel + bias) * effective_mass;
-        let lambda = lambda.max(0.0);
-
-        body.apply_impulse_at(up * lambda, wheel_pos, "wheel_suspension");
-        let normal_impulse = lambda;
-        apply_wheel_tire_impulse(
-            body,
-            wheel,
-            wheel_pos,
-            normal_impulse,
-            steer_angle,
-            brake_strength,
-        );
-
-        wheel.compression = compression;
-    } else {
-        wheel.compression = 0.0;
-    }
-}
-
-// ----------------------------------------------------------------------------
-#[allow(clippy::too_many_arguments)]
-fn apply_wheel_tire_impulse(
-    body: &mut RigidBody,
-    wheel: &mut WheelData,
-    contact_point: V3,
-    normal_impulse: f32,
-    steer_angle: f32,
-    brake_strength: f32,
-) {
-    let (forward, right) = if wheel.wheel.is_front() {
-        wheel_basis_steering(body, steer_angle)
-    } else {
-        wheel_basis_static(body)
-    };
-
-    let v = body.velocity_at(contact_point);
-    let v_forward = v.dot(forward);
-    let v_right = v.dot(right);
-
-    let wheel_surface_speed = wheel.angular_velocity * wheel.radius;
-    let slip = v_forward - wheel_surface_speed;
-
-    let friction_coeff = 1.2;
-    let max_impulse = normal_impulse * friction_coeff;
-
-    let r = contact_point - body.position();
-    let r_forward = r.cross(forward);
-    let r_right = r.cross(right);
-
-    let inv_mass = body.inv_mass(); // scalar
-    let inv_inertia = body.inv_inertia(); // M3x3 (world space)
-
-    let k_right = inv_mass + r_right.dot(inv_inertia * r_right);
-    let k_forward = inv_mass + r_forward.dot(inv_inertia * r_forward);
-
-    if k_right > 0.0 {
-        let effective_mass = 1.0 / k_right;
-        let desired_impulse = -v_right * effective_mass;
-
-        let impulse = desired_impulse.clamp(-max_impulse, max_impulse);
-        body.apply_impulse_at(right * impulse, contact_point, "wheel_tire_lateral");
+    if t < 0.0 || t > max_dist {
+        return None;
     }
 
-    if k_forward > 0.0 {
-        let effective_mass = 1.0 / k_forward;
-        let mut desired_impulse = -slip * effective_mass;
-        if brake_strength > 0.0 {
-            let brake_impulse = -v_forward.signum() * brake_strength * max_impulse;
-            desired_impulse += brake_impulse;
-        }
+    let point = origin + dir * t;
 
-        let impulse = desired_impulse.clamp(-max_impulse, max_impulse);
-        body.apply_impulse_at(forward * impulse, contact_point, "wheel_tire_longitudinal");
-
-        // Apply opposite torque to wheel
-        wheel.angular_velocity += (-impulse * wheel.radius) / wheel.inertia;
-    }
-}
-
-// ----------------------------------------------------------------------------
-#[derive(Debug)]
-pub struct Car {
-    pub body: RigidBody,
-    pub objects: [RenderObject; 5],
-    pub debug_arrows: [RenderObject; 2],
-    pub chassis: ChassisData,
-    pub wheels: [WheelData; 4],
-    pub geometry: Geometry,
-    pub engine_force: f32,
-    pub brake_force: f32,
+    Some((point, V3::X1, t))
 }
 
 // ----------------------------------------------------------------------------
 impl Car {
-    pub fn new(context: &mut RenderContext, geo: Geometry) -> Result<Self> {
-        let left_arrow_mesh_id = context.create_colored_mesh(&[], &[], true)?;
-        let right_arrow_mesh_id = context.create_colored_mesh(&[], &[], true)?;
+    pub fn new(context: &mut RenderContext, physics: &mut Physics, geo: Geometry) -> Result<Self> {
+        let mut debug_arrows = Vec::new();
+        for _ in 0..4 {
+            let arrow_verts = arrow(V3::ZERO, V3::X0)?;
+            let debug_arrow = RenderObject {
+                name: String::from("car:debug_arrow_left"),
+                transform: Transform::default(),
+                pipe_id: 0,
+                mesh_id: context.create_colored_mesh(&arrow_verts, &[], true)?,
+                material_id: context.default_material(DefaultMaterials::Green),
+                ..Default::default()
+            };
+            debug_arrows.push(debug_arrow);
+        }
 
         use crate::core::gl_pipeline_colored::{cylinder, transform_mesh};
         let (mut verts, indices) = cylinder(12, geo.wheel_radius, geo.wheel_width);
@@ -330,20 +225,81 @@ impl Car {
             M3x3::from_cols(-V3::X1, V3::X0, V3::X2),
         );
         let wheel_mesh_id = context.create_colored_mesh(&verts, &indices, false)?;
-        let dimensions = V3::new([geo.width, 0.2, geo.length]);
+        let chassis_mesh_id = context.default_mesh(DefaultMeshes::Cube);
 
         // This is temporary and gives the car 952 kg.
-        let material = x2d::WOOD;
-        let mass = Mass::from_box(material.density, dimensions)?;
-        let body = RigidBody::new(
+        let chassis_material = x2d::WOOD;
+        let dimensions = V3::new([geo.width, 0.2, geo.length]);
+        let mass = Mass::from_box(chassis_material.density, dimensions)?;
+
+        let chassis_body = RigidBody::new(
+            String::from("car:chassis"),
             mass,
-            material,
+            chassis_material,
             V3::new([0.0, 2.0 + geo.wheel_radius + 0.2, 0.0]),
             Q::identity(),
         );
 
+        let wheel_material = x2d::RUBBER;
+        let wheel_mass = Mass::from_wheel(wheel_material.density, geo.wheel_radius)?;
+
+        let track_half = 0.5 * geo.wheel_track;
+        let base_half = 0.5 * geo.wheel_base;
+        let wheels = [
+            (WheelPos::FL, V3::new([-track_half, 0.0, base_half])),
+            (WheelPos::FR, V3::new([track_half, 0.0, base_half])),
+            (WheelPos::RL, V3::new([-track_half, 0.0, -base_half])),
+            (WheelPos::RR, V3::new([track_half, 0.0, -base_half])),
+        ];
+
+        let wheels = wheels
+            .iter()
+            .map(|(wheel, local)| {
+                let offset = chassis_body.to_world(*local);
+                let name = format!("car:{wheel:?}");
+                let wheel_body =
+                    RigidBody::new(name, wheel_mass, wheel_material, offset, Q::identity());
+
+                (*wheel, *local, wheel_body)
+            })
+            .collect::<Vec<_>>();
+
+        let chassis_id = physics.add_body(chassis_body);
+
+        let suspension_softness = Softness::new(3.0, 0.2, 1.0 / 100.0);
+
+        let world_basis = M3x3::from_cols(V3::X0, V3::X1, V3::X2);
+
+        let wheels = wheels
+            .into_iter()
+            .map(|(wheel, local, wheel_body)| {
+                let wheel_id = physics.add_body(wheel_body);
+
+                let joint = Joint::new_wheel(
+                    wheel_id,
+                    chassis_id,
+                    V3::ZERO,
+                    local,
+                    world_basis,
+                    geo.wheel_radius / 4.0,
+                    suspension_softness,
+                );
+
+                let joint_id = physics.add_joint(joint);
+
+                WheelData::new(
+                    wheel,
+                    local,
+                    wheel_id,
+                    joint_id,
+                    geo.wheel_radius,
+                    geo.wheel_width,
+                )
+            })
+            .collect::<Vec<_>>();
+
         Ok(Self {
-            body,
+            chassis: chassis_id,
             objects: [
                 RenderObject {
                     name: String::from("car:chassis"),
@@ -352,16 +308,13 @@ impl Car {
                         ..Default::default()
                     },
                     pipe_id: 0,
-                    mesh_id: context.default_mesh(DefaultMeshes::Cube),
+                    mesh_id: chassis_mesh_id,
                     material_id: context.default_material(DefaultMaterials::White),
                     ..Default::default()
                 },
                 RenderObject {
                     name: String::from("car:wheel:front_left"),
-                    transform: Transform {
-                        size: V4::new([1.0, 1.0, 1.0, 1.0]),
-                        ..Default::default()
-                    },
+                    transform: Transform::default(),
                     pipe_id: 0,
                     mesh_id: wheel_mesh_id,
                     material_id: context.default_material(DefaultMaterials::Black),
@@ -369,10 +322,7 @@ impl Car {
                 },
                 RenderObject {
                     name: String::from("car:wheel:front_right"),
-                    transform: Transform {
-                        size: V4::new([1.0, 1.0, 1.0, 1.0]),
-                        ..Default::default()
-                    },
+                    transform: Transform::default(),
                     pipe_id: 0,
                     mesh_id: wheel_mesh_id,
                     material_id: context.default_material(DefaultMaterials::Black),
@@ -380,10 +330,7 @@ impl Car {
                 },
                 RenderObject {
                     name: String::from("car:wheel:rear_left"),
-                    transform: Transform {
-                        size: V4::new([1.0, 1.0, 1.0, 1.0]),
-                        ..Default::default()
-                    },
+                    transform: Transform::default(),
                     pipe_id: 0,
                     mesh_id: wheel_mesh_id,
                     material_id: context.default_material(DefaultMaterials::Black),
@@ -391,191 +338,206 @@ impl Car {
                 },
                 RenderObject {
                     name: String::from("car:wheel:rear_right"),
-                    transform: Transform {
-                        size: V4::new([1.0, 1.0, 1.0, 1.0]),
-                        ..Default::default()
-                    },
+                    transform: Transform::default(),
                     pipe_id: 0,
                     mesh_id: wheel_mesh_id,
                     material_id: context.default_material(DefaultMaterials::Black),
                     ..Default::default()
                 },
             ],
-            debug_arrows: [
-                RenderObject {
-                    name: String::from("car:debug_arrow_left"),
-                    transform: Transform {
-                        position: V4::new([0.0, 0.0, 0.0, 1.0]),
-                        size: V4::new([1.0, 1.0, 1.0, 1.0]),
-                        ..Default::default()
-                    },
-                    pipe_id: 0,
-                    mesh_id: left_arrow_mesh_id,
-                    material_id: context.default_material(DefaultMaterials::Green),
-                    ..Default::default()
-                },
-                RenderObject {
-                    name: String::from("car:debug_arrow_right"),
-                    transform: Transform {
-                        position: V4::new([0.0, 0.0, 0.0, 1.0]),
-                        size: V4::new([1.0, 1.0, 1.0, 1.0]),
-                        ..Default::default()
-                    },
-                    pipe_id: 0,
-                    mesh_id: right_arrow_mesh_id,
-                    material_id: context.default_material(DefaultMaterials::Green),
-                    ..Default::default()
-                },
-            ],
-            chassis: ChassisData {
-                ..Default::default()
-            },
-            wheels: [
-                WheelData {
-                    wheel: WheelPos::FL,
-                    position: V3::new([-0.5 * geo.wheel_track, 0.0, 0.5 * geo.wheel_base]),
-                    radius: geo.wheel_radius,
-                    width: geo.wheel_width,
-                    ..Default::default()
-                },
-                WheelData {
-                    wheel: WheelPos::FR,
-                    position: V3::new([0.5 * geo.wheel_track, 0.0, 0.5 * geo.wheel_base]),
-                    radius: geo.wheel_radius,
-                    width: geo.wheel_width,
-                    ..Default::default()
-                },
-                WheelData {
-                    wheel: WheelPos::RL,
-                    position: V3::new([-0.5 * geo.wheel_track, 0.0, -0.5 * geo.wheel_base]),
-                    radius: geo.wheel_radius,
-                    width: geo.wheel_width,
-                    ..Default::default()
-                },
-                WheelData {
-                    wheel: WheelPos::RR,
-                    position: V3::new([0.5 * geo.wheel_track, 0.0, -0.5 * geo.wheel_base]),
-                    radius: geo.wheel_radius,
-                    width: geo.wheel_width,
-                    ..Default::default()
-                },
-            ],
+            debug_arrows: debug_arrows.try_into().unwrap(),
+            wheels,
             geometry: geo,
-            engine_force: 0.0,
-            brake_force: 0.0,
+            drive_torque: 0.0,
+            brake_torque: 0.0,
+            steering_angle: 0.0,
+            chassis_position: V3::ZERO,
+            chassis_orientation: Q::identity(),
         })
     }
 
     pub fn position(&self) -> V4 {
-        V4::from_v3(self.body.position(), 1.0)
+        V4::from_v3(self.chassis_position, 1.0)
     }
 
-    pub fn update_debug_arrows(&mut self, context: &mut RenderContext) -> Result<()> {
-        use crate::core::gl_pipeline_colored::arrow;
+    pub fn update_debug_arrows(
+        &mut self,
+        context: &mut RenderContext,
+        physics: &Physics,
+    ) -> Result<()> {
+        for (wheel_data, render_object) in self.wheels.iter().zip(self.debug_arrows.iter_mut()) {
+            let body = physics
+                .get_body(wheel_data.body)
+                .ok_or(Error::InvalidBodyId)?;
 
-        for i in 0..2 {
-            let wheel_pos = self.body.position() + self.wheels[i].position;
-            let (forward, _) = wheel_basis_steering(&self.body, self.chassis.steering_angle);
-            let forward = V3::new([forward.x0(), 0.0, forward.x2()]);
-            let arrow_verts = arrow(wheel_pos, wheel_pos + 1.5 * forward)?;
-            context.update_colored_mesh(self.debug_arrows[i].mesh_id, &arrow_verts, &[])?;
+            let joint = physics
+                .get_joint(wheel_data.wheel_joint)
+                .ok_or(Error::InvalidJointId)?;
+
+            let (_, _, wheel_joint) = joint.as_wheel().ok_or(Error::InvalidJointType)?;
+
+            let wheel_pos = body.position();
+            //let forward = body.orientation().rotate(V3::X2);
+            //let axis = wheel_joint.n[2];
+            let axis = wheel_joint.accumulated_lambda[1] * wheel_joint.n[1];
+
+            if let Ok(arrow_verts) = arrow(wheel_pos, wheel_pos - 0.5 * axis) {
+                context.update_colored_mesh(render_object.mesh_id, &arrow_verts, &[])?;
+            }
         }
 
         Ok(())
     }
 
-    pub fn transform(&self) -> (V4, V4) {
-        let forward = self.body.orientation().rotate(V3::X2);
-        let position = self.body.position();
-        (V4::from_v3(forward, 0.0), V4::from_v3(position, 1.0))
+    pub fn transform(&self, physics: &Physics) -> Result<(V4, V4)> {
+        let chassis_body = physics.get_body(self.chassis).ok_or(Error::InvalidBodyId)?;
+        let forward = chassis_body.orientation().rotate(V3::X2);
+        let position = chassis_body.position();
+        Ok((V4::from_v3(forward, 0.0), V4::from_v3(position, 1.0)))
     }
 }
 
 // ----------------------------------------------------------------------------
-impl Component for Car {
-    fn update(&mut self, ctx: &Context) -> Result<()> {
+impl Car {
+    pub fn update(&mut self, ctx: &Context, physics: &mut Physics) -> Result<()> {
         const TURN_SPEED: f32 = 1.5;
         let dt = ctx.dt_secs();
 
-        let engine_torque = if ctx.state.is_pressed(GameKey::Accelerate) {
-            1200.0
+        self.drive_torque = if ctx.state.is_pressed(GameKey::Accelerate) {
+            2000.0 // Nm
         } else {
             0.0
         };
 
-        let brake_strength = if ctx.state.is_pressed(GameKey::Brake) {
-            1.0
+        self.brake_torque = if ctx.state.is_pressed(GameKey::Brake) {
+            1000.0 // Nm
         } else {
             0.0
         };
 
         if ctx.state.is_pressed(GameKey::SteerLeft) {
-            self.chassis.steering_angle -= TURN_SPEED * dt;
+            self.steering_angle -= TURN_SPEED * dt;
         }
         if ctx.state.is_pressed(GameKey::SteerRight) {
-            self.chassis.steering_angle += TURN_SPEED * dt;
+            self.steering_angle += TURN_SPEED * dt;
         }
 
-        self.body.apply_force(GRAVITY * self.body.mass());
-        self.body.integrate_forces(dt);
+        let chassis_body = physics.get_body(self.chassis).ok_or(Error::InvalidBodyId)?;
+        let chassis_orientation = chassis_body.orientation();
 
-        for wheel in &mut self.wheels {
-            if !wheel.wheel.is_front() {
-                wheel.angular_velocity += (engine_torque / wheel.inertia) * dt;
+        for wheel_data in &mut self.wheels {
+            let wheel_body = physics
+                .get_body(wheel_data.body)
+                .ok_or(Error::InvalidBodyId)?;
+            let origin = wheel_body.position();
+
+            let lateral = chassis_orientation.rotate(V3::X0).norm();
+            let suspension = chassis_orientation.rotate(V3::X1).norm();
+            let forward = chassis_orientation.rotate(V3::X2).norm();
+
+            let basis = M3x3::from_cols(lateral, suspension, forward);
+
+            let wheel_joint = physics
+                .get_joint_mut(wheel_data.wheel_joint)
+                .ok_or(Error::InvalidJointId)?;
+            wheel_joint.update_basis(basis);
+
+            let basis = if wheel_data.wheel.is_front() {
+                let steering = Q::from_axis_angle(suspension, self.steering_angle);
+                let lateral = steering.rotate(lateral);
+                let forward = steering.rotate(forward);
+                M3x3::from_cols(lateral, suspension, forward)
+            } else {
+                M3x3::from_cols(lateral, suspension, forward)
+            };
+
+            if wheel_data.wheel.is_rear() {
+                let wheel_joint = physics
+                    .get_joint_mut(wheel_data.wheel_joint)
+                    .ok_or(Error::InvalidJointId)?;
+                wheel_joint.update_motor(-4.0, self.drive_torque);
             }
 
-            if brake_strength > 0.0 {
-                let brake_torque = -wheel.angular_velocity * brake_strength * wheel.inertia;
-                wheel.angular_velocity += (brake_torque / wheel.inertia) * dt;
-            }
+            let dir = -V3::X1;
+            if let Some((point, normal, dist)) = raycast_ground(origin, dir, wheel_data.radius) {
+                let penetration = wheel_data.radius - dist;
 
-            let rolling_drag = 0.02;
-            wheel.angular_velocity *= 1.0 - rolling_drag * dt;
-        }
+                let tire_contact = TireContext {
+                    wheel_radius: wheel_data.radius,
+                    contact_point: point,
+                    basis,
+                    normal,
+                    penetration,
+                    normal_force: 6000.0,
+                    friction: 0.8,
+                };
 
-        const SOLVER_ITERS: usize = 8;
-        for _ in 0..SOLVER_ITERS {
-            for wheel in &mut self.wheels {
-                apply_wheel_suspension(
-                    &mut self.body,
-                    wheel,
-                    self.chassis.steering_angle,
-                    brake_strength,
-                    dt,
-                );
+                if let Some(contact_id) = wheel_data.contact_id {
+                    if let Some(contact) = physics.get_contact_mut(contact_id) {
+                        contact.update(tire_contact);
+                    }
+                } else {
+                    let contact = Contact::new_tire(wheel_data.body, tire_contact);
+                    let contact_id = physics.add_contact(contact);
+                    wheel_data.contact_id = Some(contact_id);
+                }
+            } else {
+                #[allow(clippy::collapsible_else_if)]
+                if let Some(contact_id) = wheel_data.contact_id {
+                    physics.remove_contact(contact_id);
+                    wheel_data.contact_id = None;
+                }
             }
         }
 
         Ok(())
     }
+}
 
-    fn integrate_positions(&mut self, dt: f32) {
-        self.body.integrate_velocities(dt);
+// ----------------------------------------------------------------------------
+impl Car {
+    pub fn apply_gravity(&mut self, physics: &mut Physics) -> Result<()> {
+        let chassis_body = physics
+            .get_body_mut(self.chassis)
+            .ok_or(Error::InvalidBodyId)?;
 
-        for wheel in &mut self.wheels {
-            wheel.spin_angle += wheel.angular_velocity * dt;
+        chassis_body.apply_force(GRAVITY * chassis_body.mass());
+
+        for wheel_data in &self.wheels {
+            let wheel_body = physics
+                .get_body_mut(wheel_data.body)
+                .ok_or(Error::InvalidBodyId)?;
+
+            wheel_body.apply_force(GRAVITY * wheel_body.mass());
         }
 
-        self.objects[0].transform.position = V4::from_v3(self.body.position(), 1.0);
-        self.objects[0].transform.rotation = self.body.orientation().into();
+        Ok(())
+    }
 
-        let chassis_rot = self.body.orientation();
-        let chassis_transform = self.body.orientation().as_mat3x3();
+    pub fn update_render_objects(&mut self, physics: &Physics) -> Result<()> {
+        let chassis_body = physics.get_body(self.chassis).ok_or(Error::InvalidBodyId)?;
 
-        for (i, wheel) in &mut self.wheels.iter().enumerate() {
-            let steering_angle = if WheelPos::from(i).is_front() {
-                -self.chassis.steering_angle
+        self.chassis_position = chassis_body.position();
+        self.chassis_orientation = chassis_body.orientation();
+
+        self.objects[0].transform.rotation = self.chassis_orientation.into();
+        self.objects[0].transform.position = V4::from_v3(self.chassis_position, 1.0);
+
+        for (wheel_data, render_obj) in self.wheels.iter().zip(self.objects[1..].iter_mut()) {
+            let wheel_body = physics
+                .get_body(wheel_data.body)
+                .ok_or(Error::InvalidBodyId)?;
+
+            render_obj.transform = wheel_body.transform();
+
+            if wheel_data.wheel.is_front() {
+                let steering = Q::from_axis_angle(V3::X1, self.steering_angle);
+                render_obj.transform.rotation = (steering * wheel_body.orientation()).into();
             } else {
-                0.0
-            };
-
-            let wheel_pos = wheel.position + V3::new([0.0, wheel.compression, 0.0]);
-            let wheel_pos = self.body.position() + chassis_transform * wheel_pos;
-            let wheel_rot =
-                affine3x3::rotate_x1(steering_angle) * affine3x3::rotate_x0(-wheel.spin_angle);
-            let wheel_rot = chassis_rot * Q::from_mat3(&wheel_rot);
-            self.objects[1 + i].transform.position = V4::from_v3(wheel_pos, 1.0);
-            self.objects[1 + i].transform.rotation = wheel_rot.into();
+                render_obj.transform.rotation = wheel_body.orientation().into();
+            }
         }
+
+        Ok(())
     }
 }

@@ -24,6 +24,7 @@ pub enum Error {
     InvalidShaderId,
     InvalidBodyId,
     InvalidJointId,
+    InvalidJointType,
     InvalidIndex {
         index: usize,
     },

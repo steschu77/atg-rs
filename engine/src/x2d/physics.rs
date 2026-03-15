@@ -69,6 +69,11 @@ impl Physics {
     }
 
     // ------------------------------------------------------------------------
+    pub fn get_joint(&self, id: JointId) -> Option<&Joint> {
+        self.joints.get(id)
+    }
+
+    // ------------------------------------------------------------------------
     pub fn get_joint_mut(&mut self, id: JointId) -> Option<&mut Joint> {
         self.joints.get_mut(id)
     }
@@ -100,10 +105,11 @@ impl Physics {
         self.warm_start();
 
         let solver_iterations = 10;
-        let dt_solver = dt / solver_iterations as f32;
+        //let dt_solver = dt / solver_iterations as f32;
+        let dt_solver = dt;
         for _ in 0..solver_iterations {
-            self.solve_constraints(dt_solver);
             self.solve_contacts(dt_solver);
+            self.solve_constraints(dt_solver);
         }
 
         self.integrate_velocities(dt);

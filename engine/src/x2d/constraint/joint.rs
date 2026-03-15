@@ -1,5 +1,5 @@
 use crate::util::obj_pool::ObjPool;
-use crate::v2d::v3::V3;
+use crate::v2d::{m3x3::M3x3, v3::V3};
 use crate::x2d::BodyId;
 use crate::x2d::constraint::softness::Softness;
 use crate::x2d::constraint::{
@@ -88,8 +88,7 @@ impl Joint {
         body_b: BodyId,
         local_anchor_a: V3,
         local_anchor_b: V3,
-        local_axis_b: V3,
-        motor_axis_b: V3,
+        world_basis: M3x3,
         rest_length: f32,
         softness: Softness,
     ) -> Self {
@@ -99,8 +98,7 @@ impl Joint {
             joint: WheelJoint::new(
                 local_anchor_a,
                 local_anchor_b,
-                local_axis_b,
-                motor_axis_b,
+                world_basis,
                 rest_length,
                 softness,
             ),
@@ -115,6 +113,18 @@ impl Joint {
             }
             _ => {
                 // Only wheel joints have motors.
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn update_basis(&mut self, basis: M3x3) {
+        match self {
+            Self::Wheel { joint, .. } => {
+                joint.update_basis(basis);
+            }
+            _ => {
+                // Only wheel joints have steering.
             }
         }
     }
@@ -251,6 +261,18 @@ impl Joint {
                     joint.solve(body_a, body_b, dt);
                 }
             }
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn as_wheel(&self) -> Option<(BodyId, BodyId, &WheelJoint)> {
+        match self {
+            Self::Wheel {
+                body_a,
+                body_b,
+                joint,
+            } => Some((*body_a, *body_b, joint)),
+            _ => None,
         }
     }
 }

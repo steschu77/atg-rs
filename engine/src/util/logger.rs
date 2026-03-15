@@ -57,8 +57,8 @@ impl Log for FileLogger {
 }
 
 // ----------------------------------------------------------------------------
-pub fn init_logger(_level: log::LevelFilter) -> Result<()> {
+pub fn init_logger(level: log::LevelFilter) -> Result<()> {
     let log_dir = std::path::PathBuf::from("log");
     std::fs::create_dir_all(&log_dir)?;
-    FileLogger::init(&log_dir, log::LevelFilter::Off)
+    FileLogger::init(&log_dir, level)
 }
