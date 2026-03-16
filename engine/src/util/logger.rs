@@ -60,5 +60,10 @@ impl Log for FileLogger {
 pub fn init_logger(level: log::LevelFilter) -> Result<()> {
     let log_dir = std::path::PathBuf::from("log");
     std::fs::create_dir_all(&log_dir)?;
-    FileLogger::init(&log_dir, level)
+    if cfg!(debug_assertions) {
+        FileLogger::init(&log_dir, level)
+    } else {
+        log::set_max_level(log::LevelFilter::Off);
+        Ok(())
+    }
 }
