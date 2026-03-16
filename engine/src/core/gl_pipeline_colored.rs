@@ -161,7 +161,6 @@ pub fn tetrahedron(side: f32, height: f32) -> Vec<Vertex> {
 
 // ----------------------------------------------------------------------------
 pub fn icosahedron(radius: f32) -> (Vec<Vertex>, Vec<u32>) {
-    #[allow(clippy::excessive_precision)]
     const PHI: f32 = 1.6180339887498948482; // golden ratio
 
     #[rustfmt::skip]
@@ -486,7 +485,6 @@ impl GlPipeline for GlColoredPipeline {
             gl.Uniform3fv(self.uid_light_color, 1, uniforms.light_color.as_ptr());
             gl.Uniform3fv(self.uid_object_color, 1, color.as_ptr());
 
-            #[allow(clippy::collapsible_else_if)]
             if bindings.has_indices {
                 if !bindings.is_debug {
                     gl.DrawElements(

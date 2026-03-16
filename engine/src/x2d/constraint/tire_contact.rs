@@ -45,7 +45,6 @@ impl TireContact {
     }
 
     // ------------------------------------------------------------------------
-    #[allow(clippy::too_many_arguments)]
     pub fn update(&mut self, context: TireContext) {
         self.context = context;
     }

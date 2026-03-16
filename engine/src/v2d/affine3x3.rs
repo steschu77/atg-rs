@@ -112,8 +112,6 @@ pub fn basis_from_x2(x2: V3) -> M3x3 {
 }
 
 // ----------------------------------------------------------------------------
-#[allow(clippy::collapsible_else_if)]
-#[allow(clippy::excessive_precision)]
 fn approx_orthogonal_axis(v: V3) -> V3 {
     debug_assert!(float_eq_rel(v.length2(), 1.0), "{v} is not a unit vector");
     const INV_SQRT_3: f32 = 0.57735026919; // 1 / √3
