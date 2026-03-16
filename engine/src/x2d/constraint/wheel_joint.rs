@@ -1,3 +1,4 @@
+#![allow(clippy::needless_range_loop)]
 use crate::v2d::{m3x3::M3x3, v3::V3};
 use crate::x2d::constraint::softness::Softness;
 use crate::x2d::rigid_body::RigidBody;
@@ -160,7 +161,6 @@ impl WheelJoint {
 
     // ------------------------------------------------------------------------
     pub fn warm_start(&self, body_a: &mut RigidBody, body_b: &mut RigidBody) {
-        #[allow(clippy::needless_range_loop)]
         for i in 0..3 {
             let impulse = self.n[i] * self.accumulated_lambda[i];
 
@@ -169,7 +169,6 @@ impl WheelJoint {
             body_b.apply_impulse_at(-impulse, self.world_anchor_b, &info);
         }
 
-        #[allow(clippy::needless_range_loop)]
         for i in 3..6 {
             let impulse = self.n[i] * self.accumulated_lambda[i];
             let info = format!("warm_start_{}", IMPULSE_NAME[i]);
@@ -183,7 +182,6 @@ impl WheelJoint {
         let v_a = body_a.velocity_at(self.world_anchor_a);
         let v_b = body_b.velocity_at(self.world_anchor_b);
 
-        #[allow(clippy::needless_range_loop)]
         for i in 0..3 {
             let c_dot = self.n[i].dot(v_a - v_b);
 
@@ -228,7 +226,6 @@ impl WheelJoint {
             body_b.apply_angular_impulse(impulse, IMPULSE_NAME[3]);
         }
 
-        #[allow(clippy::needless_range_loop)]
         for i in 4..6 {
             let n = self.n[i];
 

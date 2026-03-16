@@ -219,7 +219,6 @@ impl Wheel {
                 self.contact_id = Some(contact_id);
             }
         } else {
-            #[allow(clippy::collapsible_else_if)]
             if let Some(contact_id) = self.contact_id {
                 physics.remove_contact(contact_id);
                 self.contact_id = None;
