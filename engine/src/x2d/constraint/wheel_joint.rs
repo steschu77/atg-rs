@@ -147,16 +147,6 @@ impl WheelJoint {
             self.effective_mass[i] = if k > f32::EPSILON { 1.0 / k } else { 0.0 };
             self.error[i] = (w_b - w_a).dot(n);
         }
-
-        log::info!(
-            "wheel_pre_step[{}/{}] lateral: {}, forward: {}, suspension: {}, motor: {}",
-            body_a.name(),
-            body_b.name(),
-            self.n[0],
-            self.n[1],
-            self.n[2],
-            self.n[3],
-        );
     }
 
     // ------------------------------------------------------------------------
@@ -242,19 +232,6 @@ impl WheelJoint {
             body_a.apply_angular_impulse(-impulse, IMPULSE_NAME[i]);
             body_b.apply_angular_impulse(impulse, IMPULSE_NAME[i]);
         }
-
-        log::info!(
-            "wheel_solve[{}] vel: {:.2}, angular_vel: {:.2}",
-            body_a.name(),
-            body_a.linear_velocity(),
-            body_a.angular_velocity(),
-        );
-        log::info!(
-            "wheel_solve[{}] vel: {:.2}, angular_vel: {:.2}",
-            body_b.name(),
-            body_b.linear_velocity(),
-            body_b.angular_velocity(),
-        );
     }
 
     // ------------------------------------------------------------------------
