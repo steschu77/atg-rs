@@ -6,7 +6,7 @@ use crate::x2d::rigid_body::RigidBody;
 pub struct TireContext {
     pub wheel_radius: f32,
     pub contact_point: V3,
-    pub basis: M3x3,
+    pub world_basis: M3x3,
     pub normal: V3,
     pub penetration: f32,
     pub normal_force: f32,
@@ -54,8 +54,8 @@ impl TireContact {
         let inv_mass = body.inv_mass();
         let inv_inertia = body.inv_inertia();
 
-        let normal = self.context.basis.col1();
-        let forward = self.context.basis.col2();
+        let normal = self.context.normal;
+        let forward = self.context.world_basis.col2();
 
         let r = self.context.contact_point - body.position();
 
@@ -81,33 +81,25 @@ impl TireContact {
         };
 
         self.bias = -(0.1 / dt) * self.context.penetration.max(0.0);
-
-        log::info!(
-            "tire_pre_step[{}] lateral: {}, normal: {}, forward: {}",
-            body.name(),
-            self.context.basis.col0(),
-            self.context.basis.col1(),
-            self.context.basis.col2(),
-        );
     }
 
     // ------------------------------------------------------------------------
     pub fn warm_start(&self, body: &mut RigidBody) {
-        let normal = self.context.basis.col1();
+        let normal = self.context.world_basis.col1();
         body.apply_impulse_at(
             normal * self.normal_lambda,
             self.context.contact_point,
             "tire_normal",
         );
 
-        let lateral = self.context.basis.col0();
+        let lateral = self.context.world_basis.col0();
         body.apply_impulse_at(
             lateral * self.lateral_lambda,
             self.context.contact_point,
             "tire_lateral",
         );
 
-        let forward = self.context.basis.col2();
+        let forward = self.context.world_basis.col2();
         body.apply_impulse_at(
             forward * self.forward_lambda,
             self.context.contact_point,
@@ -122,22 +114,13 @@ impl TireContact {
         let v = body.velocity_at(self.context.contact_point);
         let lin_v = body.linear_velocity();
 
-        let lateral = self.context.basis.col0();
-        let normal = self.context.basis.col1();
-        let forward = self.context.basis.col2();
+        let lateral = self.context.world_basis.col0();
+        let normal = self.context.normal;
+        let forward = self.context.world_basis.col2();
 
-        let lateral_speed = lateral.dot(lin_v);
+        let lateral_speed = lateral.dot(lin_v); // using v would counteract steering impulse
         let forward_speed = forward.dot(v);
         let normal_speed = normal.dot(v);
-
-        log::info!(
-            "tire_solve[{}] vel at {}: {v}, lateral_speed: {}, forward_speed: {}, normal_speed: {}",
-            body.name(),
-            self.context.contact_point,
-            lateral_speed,
-            forward_speed,
-            normal_speed
-        );
 
         let mut lambda = -lateral_speed * self.eff_mass_lateral;
         let old_lambda = self.lateral_lambda;

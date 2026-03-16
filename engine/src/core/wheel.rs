@@ -202,7 +202,7 @@ impl Wheel {
             let tire_contact = TireContext {
                 wheel_radius: self.radius,
                 contact_point: point,
-                basis,
+                world_basis: basis,
                 normal,
                 penetration,
                 normal_force: 100.0,
