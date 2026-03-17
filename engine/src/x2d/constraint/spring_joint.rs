@@ -83,10 +83,8 @@ impl SpringJoint {
 
         self.effective_mass = if k > f32::EPSILON { 1.0 / k } else { 0.0 };
 
-        let position_error = dist - self.rest_length;
-        self.error = position_error;
-
-        self.bias = 50.0 * position_error;
+        self.error = dist - self.rest_length;
+        self.bias = self.softness.bias_rate * self.error;
     }
 
     // ------------------------------------------------------------------------
