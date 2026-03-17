@@ -28,105 +28,23 @@ pub struct Geometry {
 pub const GRAVITY: V3 = V3::new([0.0, -9.81, 0.0]);
 
 // ----------------------------------------------------------------------------
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum WheelPos {
-    FL,
-    FR,
-    RL,
-    RR,
-}
-
-// ----------------------------------------------------------------------------
-impl TryFrom<usize> for WheelPos {
-    type Error = Error;
-
-    fn try_from(index: usize) -> Result<Self> {
-        match index {
-            0 => Ok(WheelPos::FL),
-            1 => Ok(WheelPos::FR),
-            2 => Ok(WheelPos::RL),
-            3 => Ok(WheelPos::RR),
-            _ => Err(Error::InvalidIndex { index }),
-        }
-    }
-}
-// ----------------------------------------------------------------------------
-impl WheelPos {
-    pub fn other_lr(self) -> Self {
-        match self {
-            WheelPos::FL => WheelPos::FR,
-            WheelPos::FR => WheelPos::FL,
-            WheelPos::RL => WheelPos::RR,
-            WheelPos::RR => WheelPos::RL,
-        }
-    }
-
-    pub fn other_fb(self) -> Self {
-        match self {
-            WheelPos::FL => WheelPos::RL,
-            WheelPos::FR => WheelPos::RR,
-            WheelPos::RL => WheelPos::FL,
-            WheelPos::RR => WheelPos::FR,
-        }
-    }
-
-    pub fn index(self) -> usize {
-        match self {
-            WheelPos::FL => 0,
-            WheelPos::FR => 1,
-            WheelPos::RL => 2,
-            WheelPos::RR => 3,
-        }
-    }
-
-    pub fn is_front(self) -> bool {
-        match self {
-            WheelPos::FL | WheelPos::FR => true,
-            WheelPos::RL | WheelPos::RR => false,
-        }
-    }
-
-    pub fn is_rear(self) -> bool {
-        match self {
-            WheelPos::FL | WheelPos::FR => false,
-            WheelPos::RL | WheelPos::RR => true,
-        }
-    }
-
-    pub fn sign_lr(self) -> f32 {
-        match self {
-            WheelPos::FL | WheelPos::RL => -1.0,
-            WheelPos::FR | WheelPos::RR => 1.0,
-        }
-    }
-
-    pub fn sign_fb(self) -> f32 {
-        match self {
-            WheelPos::FL | WheelPos::FR => 1.0,
-            WheelPos::RL | WheelPos::RR => -1.0,
-        }
-    }
-}
-
-// ----------------------------------------------------------------------------
 #[derive(Debug, Clone)]
 pub struct WheelData {
-    pub wheel: WheelPos,
+    pub is_steering: bool,
+    pub is_driving: bool,
     pub local_position: V3,
     pub radius: f32,
     pub width: f32,
-    pub drive_torque: f32,
-    pub brake_torque: f32,
-    pub normal_force: f32,
     pub body: BodyId,
-    pub wheel_joint: JointId,
-    pub contact_id: Option<ContactId>,
+    pub joint: JointId,
+    pub contact: Option<ContactId>,
 }
 
 // ----------------------------------------------------------------------------
 impl WheelData {
     fn new(
-        wheel: WheelPos,
+        is_steering: bool,
+        is_driving: bool,
         local_position: V3,
         body: BodyId,
         wheel_joint: JointId,
@@ -134,16 +52,14 @@ impl WheelData {
         width: f32,
     ) -> Self {
         Self {
-            wheel,
+            is_steering,
+            is_driving,
             local_position,
             radius,
             width,
-            drive_torque: 0.0,
-            brake_torque: 0.0,
-            normal_force: 0.0,
             body,
-            wheel_joint,
-            contact_id: None,
+            joint: wheel_joint,
+            contact: None,
         }
     }
 }
@@ -246,21 +162,25 @@ impl Car {
         let track_half = 0.5 * geo.wheel_track;
         let base_half = 0.5 * geo.wheel_base;
         let wheels = [
-            (WheelPos::FL, V3::new([-track_half, 0.0, base_half])),
-            (WheelPos::FR, V3::new([track_half, 0.0, base_half])),
-            (WheelPos::RL, V3::new([-track_half, 0.0, -base_half])),
-            (WheelPos::RR, V3::new([track_half, 0.0, -base_half])),
+            (true, false, "FL", V3::new([-track_half, 0.0, base_half])),
+            (true, false, "FR", V3::new([track_half, 0.0, base_half])),
+            (false, true, "RL", V3::new([-track_half, 0.0, -base_half])),
+            (false, true, "RR", V3::new([track_half, 0.0, -base_half])),
         ];
 
         let wheels = wheels
             .iter()
-            .map(|(wheel, local)| {
+            .map(|(steering, driving, name, local)| {
                 let offset = chassis_body.to_world(*local);
-                let name = format!("car:{wheel:?}");
-                let wheel_body =
-                    RigidBody::new(name, wheel_mass, wheel_material, offset, Q::identity());
+                let wheel_body = RigidBody::new(
+                    String::from(*name),
+                    wheel_mass,
+                    wheel_material,
+                    offset,
+                    Q::identity(),
+                );
 
-                (*wheel, *local, wheel_body)
+                (*steering, *driving, *local, wheel_body)
             })
             .collect::<Vec<_>>();
 
@@ -272,7 +192,7 @@ impl Car {
 
         let wheels = wheels
             .into_iter()
-            .map(|(wheel, local, wheel_body)| {
+            .map(|(steering, driving, local, wheel_body)| {
                 let wheel_id = physics.add_body(wheel_body);
 
                 let joint = Joint::new_wheel(
@@ -288,7 +208,8 @@ impl Car {
                 let joint_id = physics.add_joint(joint);
 
                 WheelData::new(
-                    wheel,
+                    steering,
+                    driving,
                     local,
                     wheel_id,
                     joint_id,
@@ -371,7 +292,7 @@ impl Car {
                 .ok_or(Error::InvalidBodyId)?;
 
             let joint = physics
-                .get_joint(wheel_data.wheel_joint)
+                .get_joint(wheel_data.joint)
                 .ok_or(Error::InvalidJointId)?;
 
             let (_, _, wheel_joint) = joint.as_wheel().ok_or(Error::InvalidJointType)?;
@@ -438,11 +359,11 @@ impl Car {
             let basis = M3x3::from_cols(lateral, suspension, forward);
 
             let wheel_joint = physics
-                .get_joint_mut(wheel_data.wheel_joint)
+                .get_joint_mut(wheel_data.joint)
                 .ok_or(Error::InvalidJointId)?;
             wheel_joint.update_basis(basis);
 
-            let basis = if wheel_data.wheel.is_front() {
+            let basis = if wheel_data.is_steering {
                 let steering = Q::from_axis_angle(suspension, self.steering_angle);
                 let lateral = steering.rotate(lateral);
                 let forward = steering.rotate(forward);
@@ -451,9 +372,9 @@ impl Car {
                 M3x3::from_cols(lateral, suspension, forward)
             };
 
-            if wheel_data.wheel.is_rear() {
+            if wheel_data.is_driving {
                 let wheel_joint = physics
-                    .get_joint_mut(wheel_data.wheel_joint)
+                    .get_joint_mut(wheel_data.joint)
                     .ok_or(Error::InvalidJointId)?;
                 wheel_joint.update_motor(-4.0, self.drive_torque);
             }
@@ -472,19 +393,19 @@ impl Car {
                     friction: 0.8,
                 };
 
-                if let Some(contact_id) = wheel_data.contact_id {
+                if let Some(contact_id) = wheel_data.contact {
                     if let Some(contact) = physics.get_contact_mut(contact_id) {
                         contact.update(tire_contact);
                     }
                 } else {
                     let contact = Contact::new_tire(wheel_data.body, tire_contact);
                     let contact_id = physics.add_contact(contact);
-                    wheel_data.contact_id = Some(contact_id);
+                    wheel_data.contact = Some(contact_id);
                 }
             } else {
-                if let Some(contact_id) = wheel_data.contact_id {
+                if let Some(contact_id) = wheel_data.contact {
                     physics.remove_contact(contact_id);
-                    wheel_data.contact_id = None;
+                    wheel_data.contact = None;
                 }
             }
         }
@@ -529,7 +450,7 @@ impl Car {
 
             render_obj.transform = wheel_body.transform();
 
-            if wheel_data.wheel.is_front() {
+            if wheel_data.is_steering {
                 let steering = Q::from_axis_angle(V3::X1, self.steering_angle);
                 render_obj.transform.rotation = (steering * wheel_body.orientation()).into();
             } else {
