@@ -80,25 +80,6 @@ pub struct Car {
 }
 
 // ----------------------------------------------------------------------------
-fn wheel_basis_static(orientation: Q) -> (V3, V3) {
-    let forward = orientation.rotate(V3::X2);
-    let right = orientation.rotate(V3::X0);
-    (forward, right)
-}
-
-// ----------------------------------------------------------------------------
-fn wheel_basis_steering(orientation: Q, steer_angle: f32) -> (V3, V3) {
-    let car_forward = orientation.rotate(V3::X2);
-    let car_up = orientation.rotate(V3::X1);
-
-    let steer_q = Q::from_axis_angle(car_up, steer_angle);
-    let forward = steer_q.rotate(car_forward).norm();
-    let right = car_up.cross(forward).norm();
-
-    (forward, right)
-}
-
-// ----------------------------------------------------------------------------
 // Simple raycast for ground plane at y=0. Sophisticated terrain raycasting comes later.
 fn raycast_ground(origin: V3, dir: V3, max_dist: f32) -> Option<(V3, V3, f32)> {
     if dir.x1() >= 0.0 {
@@ -352,24 +333,19 @@ impl Car {
                 .ok_or(Error::InvalidBodyId)?;
             let origin = wheel_body.position();
 
-            let lateral = chassis_orientation.rotate(V3::X0).norm();
-            let suspension = chassis_orientation.rotate(V3::X1).norm();
-            let forward = chassis_orientation.rotate(V3::X2).norm();
-
-            let basis = M3x3::from_cols(lateral, suspension, forward);
+            // Get col0 = lateral (right), col1 = suspension (up), col2 = forward
+            let chassis_basis: M3x3 = chassis_orientation.as_mat3x3();
 
             let wheel_joint = physics
                 .get_joint_mut(wheel_data.joint)
                 .ok_or(Error::InvalidJointId)?;
-            wheel_joint.update_basis(basis);
+            wheel_joint.update_basis(chassis_basis);
 
-            let basis = if wheel_data.is_steering {
-                let steering = Q::from_axis_angle(suspension, self.steering_angle);
-                let lateral = steering.rotate(lateral);
-                let forward = steering.rotate(forward);
-                M3x3::from_cols(lateral, suspension, forward)
+            let tire_basis = if wheel_data.is_steering {
+                let steering = Q::from_axis_angle(chassis_basis.col1(), self.steering_angle);
+                (steering * chassis_orientation).as_mat3x3()
             } else {
-                M3x3::from_cols(lateral, suspension, forward)
+                chassis_basis
             };
 
             if wheel_data.is_driving {
@@ -386,7 +362,7 @@ impl Car {
                 let tire_contact = TireContext {
                     wheel_radius: wheel_data.radius,
                     contact_point: point,
-                    world_basis: basis,
+                    world_basis: tire_basis,
                     normal,
                     penetration,
                     normal_force: 6000.0,
