@@ -19,6 +19,9 @@ pub struct Renderer {
     fbo: gl::GLuint,
     color_tex: gl::GLuint,
     depth_tex: gl::GLuint,
+    fbo_width: usize,
+    fbo_height: usize,
+    projection: M4x4,
 }
 
 // ----------------------------------------------------------------------------
@@ -26,9 +29,15 @@ impl Renderer {
     pub fn new(gl: Rc<gl::OpenGlFunctions>) -> Result<Self> {
         print_opengl_info(&gl);
 
+        let fbo_width = 800;
+        let fbo_height = 600;
+
         let texture_vao = create_texture_vao(&gl);
         let texture_program = create_program(&gl, "texture", VS_TEXTURE, FS_TEXTURE).unwrap();
-        let (fbo, color_tex, depth_tex) = create_framebuffer(&gl, 800, 600)?;
+        let (fbo, color_tex, depth_tex) = create_framebuffer(&gl, fbo_width, fbo_height)?;
+
+        let aspect = fbo_width as f32 / fbo_height as f32;
+        let projection = affine4x4::perspective(45.0, aspect, 0.1, 100.0);
 
         Ok(Self {
             gl,
@@ -37,6 +46,9 @@ impl Renderer {
             fbo,
             color_tex,
             depth_tex,
+            fbo_width,
+            fbo_height,
+            projection,
         })
     }
 
@@ -50,7 +62,7 @@ impl Renderer {
 
         let view = camera.transform();
         let cam_pos = camera.position();
-        let projection = affine4x4::perspective(45.0, 800.0 / 600.0, 0.1, 100.0);
+        let projection = self.projection;
         let camera = projection * view;
 
         unsafe {
