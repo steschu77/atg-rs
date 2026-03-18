@@ -356,6 +356,7 @@ impl Car {
             let dir = -V3::X1;
             if let Some((point, normal, dist)) = raycast_ground(origin, dir, wheel_data.radius) {
                 let penetration = wheel_data.radius - dist;
+                let normal_force = wheel_joint.normal_force(ctx.dt_secs());
 
                 let tire_contact = TireContext {
                     wheel_radius: wheel_data.radius,
@@ -363,7 +364,7 @@ impl Car {
                     world_basis: tire_basis,
                     normal,
                     penetration,
-                    normal_force: 6000.0,
+                    normal_force,
                     friction: 0.8,
                 };
 
