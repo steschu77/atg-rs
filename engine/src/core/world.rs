@@ -31,7 +31,6 @@ pub struct World {
     terrain_normal_arrows: Vec<RenderObject>,
     debug_arrows: Vec<RenderObject>,
     _font: gl_font::Font,
-    t: std::time::Duration,
 }
 
 // ----------------------------------------------------------------------------
@@ -50,7 +49,6 @@ impl World {
             V4::new([0.0, 4.0, -1.0, 1.0]),
             V4::new([0.0, 0.0, 0.0, 1.0]),
         );
-        let t = std::time::Duration::ZERO;
 
         let mesh = create_text_mesh(&font, "Debug Text: Hello, World!")?;
         let mesh_id = render_context.create_msdftex_mesh(&mesh)?;
@@ -180,7 +178,6 @@ impl World {
             debug_arrows,
             car,
             _font: font,
-            t,
         })
     }
 
@@ -191,7 +188,6 @@ impl World {
     }
 
     pub fn update(&mut self, dt: &std::time::Duration) -> Result<()> {
-        self.t += *dt;
         let ctx = Context {
             dt: *dt,
             state: &self.input_context,
