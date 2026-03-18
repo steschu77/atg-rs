@@ -22,7 +22,7 @@ impl GameLoop {
         state: &input::State,
     ) -> Result<()> {
         // game loop: https://gameprogrammingpatterns.com/game-loop.html
-        let t0 = clock.now();
+        let t_frame = clock.now();
 
         game.input(events.clone(), state.clone())?;
 
@@ -35,16 +35,15 @@ impl GameLoop {
 
         game.render()?;
 
-        let t1 = clock.now();
-        self.t_lag += t1 - t0;
-
-        if self.t_lag < self.dt_update {
+        let t_lag = self.t_lag + clock.t_since(t_frame);
+        if t_lag < self.dt_update {
             // Fast machines: sleep to maintain a consistent update rate
-            clock.sleep(self.dt_update - self.t_lag);
+            clock.sleep(self.dt_update - t_lag);
         }
 
         // Pretend that all updates have been processed
-        self.t_lag = self.t_lag.saturating_sub(self.dt_update * updates_needed);
+        let t_lag = self.t_lag + clock.t_since(t_frame);
+        self.t_lag = t_lag.saturating_sub(self.dt_update * updates_needed);
         Ok(())
     }
 }

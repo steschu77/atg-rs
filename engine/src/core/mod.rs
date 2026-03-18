@@ -23,6 +23,9 @@ pub mod world;
 // ----------------------------------------------------------------------------
 pub trait IClock {
     fn now(&self) -> std::time::Duration;
+    fn t_since(&self, t: std::time::Duration) -> std::time::Duration {
+        self.now() - t
+    }
     fn sleep(&self, dt: std::time::Duration) -> std::time::Duration;
 }
 
