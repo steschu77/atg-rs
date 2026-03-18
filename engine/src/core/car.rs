@@ -306,13 +306,13 @@ impl Car {
         let dt = ctx.dt_secs();
 
         self.drive_torque = if ctx.state.is_pressed(GameKey::Accelerate) {
-            2000.0 // Nm
+            4000.0 // Nm
         } else {
             0.0
         };
 
         self.brake_torque = if ctx.state.is_pressed(GameKey::Brake) {
-            1000.0 // Nm
+            2000.0 // Nm
         } else {
             0.0
         };
@@ -349,8 +349,14 @@ impl Car {
                 chassis_basis
             };
 
-            if wheel_data.is_driving {
-                wheel_joint.update_motor(-4.0, self.drive_torque);
+            if self.brake_torque > 0.0 {
+                // Braking = try "stop spinning"
+                wheel_joint.update_motor(0.0, self.brake_torque);
+            } else if wheel_data.is_driving && self.drive_torque > 0.0 {
+                wheel_joint.update_motor(-16.0, self.drive_torque);
+            } else {
+                // Coast: no motor torque, wheel spins freely
+                wheel_joint.update_motor(0.0, 0.0);
             }
 
             let dir = -V3::X1;
