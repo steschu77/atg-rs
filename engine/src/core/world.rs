@@ -43,8 +43,6 @@ impl World {
             texture: font.texture,
         });
 
-        let terrain = Terrain::new(32, 32);
-        //let terrain = Terrain::from_png(Path::new("assets/terrain/heightmap.png"))?;
         let camera = Camera::new(
             V4::new([0.0, 4.0, -1.0, 1.0]),
             V4::new([0.0, 0.0, 0.0, 1.0]),
@@ -65,20 +63,26 @@ impl World {
             ..Default::default()
         };
 
+        let chunks_cx = 4;
+        let chunks_cz = 4;
+        let terrain = Terrain::new(chunks_cx, chunks_cz);
+        //let terrain = Terrain::from_png(Path::new("assets/terrain/heightmap.png"))?;
+
         let mut terrain_chunks = Vec::new();
-        let mesh_id = terrain.create_chunk_mesh(&mut render_context, 0, 0)?;
-        terrain_chunks.push(RenderObject {
-            name: String::from("terrain_chunk_0_0"),
-            transform: Transform {
-                position: V4::new([0.0, 0.0, 0.0, 1.0]),
-                rotation: Rotation::default(),
-                size: V4::new([1.0, 1.0, 1.0, 1.0]),
-            },
-            pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
-            mesh_id,
-            material_id: render_context.default_material(DefaultMaterials::Green),
-            ..Default::default()
-        });
+
+        for x in 0..chunks_cx {
+            for z in 0..chunks_cz {
+                let mesh_id = terrain.create_chunk_mesh(&mut render_context, x, z)?;
+                terrain_chunks.push(RenderObject {
+                    name: format!("terrain_chunk_{x}_{z}"),
+                    transform: Transform::default(),
+                    pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
+                    mesh_id,
+                    material_id: render_context.default_material(DefaultMaterials::Green),
+                    ..Default::default()
+                });
+            }
+        }
 
         let mut terrain_normal_arrows = Vec::new();
         for x in (0..16u8).step_by(2) {
@@ -91,11 +95,7 @@ impl World {
                 )?;
                 terrain_normal_arrows.push(RenderObject {
                     name: format!("terrain_normal_arrow_{x}_{z}"),
-                    transform: Transform {
-                        position: V4::new([0.0, 0.0, 0.0, 1.0]),
-                        rotation: Rotation::default(),
-                        size: V4::new([1.0, 1.0, 1.0, 1.0]),
-                    },
+                    transform: Transform::default(),
                     pipe_id: gl_pipeline::GlPipelineType::Colored.into(),
                     mesh_id,
                     material_id: render_context.default_material(DefaultMaterials::Green),

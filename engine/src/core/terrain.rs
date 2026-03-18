@@ -8,25 +8,32 @@ use std::path::Path;
 // ----------------------------------------------------------------------------
 const TERRAIN_RESOLUTION: f32 = 0.5;
 const TERRAIN_RESOLUTION_INV: f32 = 1.0 / TERRAIN_RESOLUTION;
-const TERRAIN_CHUNK_SIZE: u32 = 32;
+const TERRAIN_CHUNK_SIZE: usize = 32;
 
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
 pub struct Terrain {
-    width: u32,
-    height: u32,
+    chunks_cx: usize,
+    chunks_cz: usize,
+    width: usize,
+    height: usize,
     heightmap: Vec<f32>,
 }
 
 // ----------------------------------------------------------------------------
 impl Terrain {
     // ------------------------------------------------------------------------
-    pub fn new(width: u32, height: u32) -> Self {
-        let mut heightmap: Vec<f32> = vec![0.0; (width * height) as usize];
-        //generate_hills(&mut heightmap, width as usize, height as usize);
-        generate_flat(&mut heightmap, width as usize, height as usize);
+    pub fn new(chunks_cx: usize, chunks_cz: usize) -> Self {
+        let width = chunks_cx * TERRAIN_CHUNK_SIZE;
+        let height = chunks_cz * TERRAIN_CHUNK_SIZE;
+
+        let mut heightmap: Vec<f32> = vec![0.0; width * height];
+        //generate_hills(&mut heightmap, width, height);
+        generate_flat(&mut heightmap, width, height);
 
         Terrain {
+            chunks_cx,
+            chunks_cz,
             width,
             height,
             heightmap,
@@ -43,8 +50,10 @@ impl Terrain {
         }
 
         let h_norm: f32 = 1.0 / 5.0; // 5 levels per meter
-        let width = (png.width + 3) & !3;
-        let height = png.height;
+        let chunks_cx = png.width / TERRAIN_CHUNK_SIZE;
+        let chunks_cz = png.height / TERRAIN_CHUNK_SIZE;
+        let width = chunks_cx * TERRAIN_CHUNK_SIZE;
+        let height = chunks_cz * TERRAIN_CHUNK_SIZE;
 
         let mut heightmap: Vec<f32> = vec![0.0; width * height];
         for y in 0..png.height {
@@ -57,8 +66,10 @@ impl Terrain {
         }
 
         Ok(Terrain {
-            width: width as u32,
-            height: height as u32,
+            chunks_cx,
+            chunks_cz,
+            width,
+            height,
             heightmap,
         })
     }
@@ -67,11 +78,11 @@ impl Terrain {
     pub fn create_chunk_mesh(
         &self,
         context: &mut RenderContext,
-        chunk_x: u32,
-        chunk_z: u32,
+        chunk_x: usize,
+        chunk_z: usize,
     ) -> Result<GlMeshId> {
         let resolution: f32 = TERRAIN_RESOLUTION;
-        let chunk_size: u32 = TERRAIN_CHUNK_SIZE;
+        let chunk_size: usize = TERRAIN_CHUNK_SIZE;
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
         let chunk_origin_x = chunk_x * chunk_size;
@@ -102,6 +113,11 @@ impl Terrain {
                 let i2 = i0 + (chunk_size + 1);
                 let i3 = i2 + 1;
 
+                let i0 = i0 as u32;
+                let i1 = i1 as u32;
+                let i2 = i2 as u32;
+                let i3 = i3 as u32;
+
                 indices.extend_from_slice(&[i0, i1, i2, i1, i3, i2]);
             }
         }
@@ -116,8 +132,8 @@ impl Terrain {
         let hz = z * TERRAIN_RESOLUTION_INV;
 
         // Bilinear interpolation between 4 neighboring samples
-        let x0 = hx.floor() as u32;
-        let z0 = hz.floor() as u32;
+        let x0 = hx.floor() as usize;
+        let z0 = hz.floor() as usize;
         let x1 = x0 + 1;
         let z1 = z0 + 1;
 
@@ -142,8 +158,8 @@ impl Terrain {
         let hz = z * TERRAIN_RESOLUTION_INV;
 
         // Bilinear interpolation between 4 neighboring samples
-        let x0 = hx.floor() as u32;
-        let z0 = hz.floor() as u32;
+        let x0 = hx.floor() as usize;
+        let z0 = hz.floor() as usize;
         let x1 = x0 + 1;
         let z1 = z0 + 1;
 
@@ -176,14 +192,14 @@ impl Terrain {
     }
 
     // ------------------------------------------------------------------------
-    fn get_height_at(&self, x: u32, z: u32) -> f32 {
+    fn get_height_at(&self, x: usize, z: usize) -> f32 {
         let x = x.min(self.width - 1);
         let z = z.min(self.height - 1);
-        self.heightmap[x as usize + z as usize * self.width as usize]
+        self.heightmap[x + z * self.width]
     }
 
     // ------------------------------------------------------------------------
-    fn get_normal_at(&self, x: u32, z: u32) -> V3 {
+    fn get_normal_at(&self, x: usize, z: usize) -> V3 {
         let west = if x > 0 {
             self.get_height_at(x - 1, z)
         } else {
