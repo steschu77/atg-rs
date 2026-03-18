@@ -43,7 +43,7 @@ impl World {
             texture: font.texture,
         });
 
-        let terrain = Terrain::default();
+        let terrain = Terrain::new(32, 32);
         //let terrain = Terrain::from_png(Path::new("assets/terrain/heightmap.png"))?;
         let camera = Camera::new(
             V4::new([0.0, 4.0, -1.0, 1.0]),
@@ -85,8 +85,8 @@ impl World {
             for z in (0..16u8).step_by(2) {
                 let mesh_id = terrain.create_normal_arrow_mesh(
                     &mut render_context,
-                    f32::from(x) + 0.5,
-                    f32::from(z) + 0.5,
+                    f32::from(x),
+                    f32::from(z),
                     1.0,
                 )?;
                 terrain_normal_arrows.push(RenderObject {

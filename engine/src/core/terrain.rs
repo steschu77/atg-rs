@@ -5,7 +5,7 @@ use crate::error::{Error, Result};
 use crate::v2d::v3::V3;
 use std::path::Path;
 
-const TERRAIN_RESOLUTION: f32 = 1.0;
+const TERRAIN_RESOLUTION: f32 = 0.5;
 const TERRAIN_RESOLUTION_INV: f32 = 1.0 / TERRAIN_RESOLUTION;
 
 // ----------------------------------------------------------------------------
