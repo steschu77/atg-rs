@@ -20,6 +20,7 @@ pub struct Terrain {
 
 // ----------------------------------------------------------------------------
 impl Terrain {
+    // ------------------------------------------------------------------------
     pub fn new(width: u32, height: u32) -> Self {
         let mut heightmap: Vec<f32> = vec![0.0; (width * height) as usize];
         //generate_hills(&mut heightmap, width as usize, height as usize);
@@ -32,6 +33,7 @@ impl Terrain {
         }
     }
 
+    // ------------------------------------------------------------------------
     pub fn from_png(path: &Path) -> Result<Self> {
         let contents = std::fs::read(path)?;
         let (png, _plte, data) = miniz::png_read::png_read(&contents)?;
@@ -61,6 +63,7 @@ impl Terrain {
         })
     }
 
+    // ------------------------------------------------------------------------
     pub fn create_chunk_mesh(
         &self,
         context: &mut RenderContext,
@@ -106,12 +109,80 @@ impl Terrain {
         context.create_colored_mesh(&vertices, &indices, true)
     }
 
+    // ------------------------------------------------------------------------
+    pub fn height_at(&self, x: f32, z: f32) -> f32 {
+        // Convert world coordinates to heightmap indices
+        let hx = x * TERRAIN_RESOLUTION_INV;
+        let hz = z * TERRAIN_RESOLUTION_INV;
+
+        // Bilinear interpolation between 4 neighboring samples
+        let x0 = hx.floor() as u32;
+        let z0 = hz.floor() as u32;
+        let x1 = x0 + 1;
+        let z1 = z0 + 1;
+
+        let fx = hx.fract();
+        let fz = hz.fract();
+
+        let h00 = self.get_height_at(x0, z0);
+        let h10 = self.get_height_at(x1, z0);
+        let h01 = self.get_height_at(x0, z1);
+        let h11 = self.get_height_at(x1, z1);
+
+        // Bilinear interpolation
+        let h0 = h00 * (1.0 - fx) + h10 * fx;
+        let h1 = h01 * (1.0 - fx) + h11 * fx;
+        h0 * (1.0 - fz) + h1 * fz
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn normal_at(&self, x: f32, z: f32) -> V3 {
+        // Convert world coordinates to heightmap indices
+        let hx = x * TERRAIN_RESOLUTION_INV;
+        let hz = z * TERRAIN_RESOLUTION_INV;
+
+        // Bilinear interpolation between 4 neighboring samples
+        let x0 = hx.floor() as u32;
+        let z0 = hz.floor() as u32;
+        let x1 = x0 + 1;
+        let z1 = z0 + 1;
+
+        let fx = hx.fract();
+        let fz = hz.fract();
+
+        let n00 = self.get_normal_at(x0, z0);
+        let n10 = self.get_normal_at(x1, z0);
+        let n01 = self.get_normal_at(x0, z1);
+        let n11 = self.get_normal_at(x1, z1);
+
+        // Bilinear interpolation
+        let n0 = n00 * (1.0 - fx) + n10 * fx;
+        let n1 = n01 * (1.0 - fx) + n11 * fx;
+        (n0 * (1.0 - fz) + n1 * fz).norm()
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn create_normal_arrow_mesh(
+        &self,
+        context: &mut RenderContext,
+        x: f32,
+        z: f32,
+        length: f32,
+    ) -> Result<GlMeshId> {
+        let pos = V3::new([x, self.height_at(x, z), z]);
+        let normal = self.normal_at(x, z);
+        let verts = gl_pipeline_colored::arrow(pos, pos + length * normal)?;
+        context.create_colored_mesh(&verts, &[], true)
+    }
+
+    // ------------------------------------------------------------------------
     fn get_height_at(&self, x: u32, z: u32) -> f32 {
         let x = x.min(self.width - 1);
         let z = z.min(self.height - 1);
         self.heightmap[x as usize + z as usize * self.width as usize]
     }
 
+    // ------------------------------------------------------------------------
     fn get_normal_at(&self, x: u32, z: u32) -> V3 {
         let west = if x > 0 {
             self.get_height_at(x - 1, z)
@@ -140,76 +211,6 @@ impl Terrain {
 
         let normal = V3::new([n_x, n_y, n_z]);
         normal.norm()
-    }
-
-    pub fn height_at(&self, x: f32, z: f32) -> f32 {
-        // Convert world coordinates to heightmap indices
-        let hx = x * TERRAIN_RESOLUTION_INV;
-        let hz = z * TERRAIN_RESOLUTION_INV;
-
-        // Bilinear interpolation between 4 neighboring samples
-        let x0 = hx.floor() as u32;
-        let z0 = hz.floor() as u32;
-        let x1 = x0 + 1;
-        let z1 = z0 + 1;
-
-        let fx = hx.fract();
-        let fz = hz.fract();
-
-        let h00 = self.get_height_at(x0, z0);
-        let h10 = self.get_height_at(x1, z0);
-        let h01 = self.get_height_at(x0, z1);
-        let h11 = self.get_height_at(x1, z1);
-
-        // Bilinear interpolation
-        let h0 = h00 * (1.0 - fx) + h10 * fx;
-        let h1 = h01 * (1.0 - fx) + h11 * fx;
-        h0 * (1.0 - fz) + h1 * fz
-    }
-
-    pub fn normal_at(&self, x: f32, z: f32) -> V3 {
-        // Convert world coordinates to heightmap indices
-        let hx = x * TERRAIN_RESOLUTION_INV;
-        let hz = z * TERRAIN_RESOLUTION_INV;
-
-        // Bilinear interpolation between 4 neighboring samples
-        let x0 = hx.floor() as u32;
-        let z0 = hz.floor() as u32;
-        let x1 = x0 + 1;
-        let z1 = z0 + 1;
-
-        let fx = hx.fract();
-        let fz = hz.fract();
-
-        let n00 = self.get_normal_at(x0, z0);
-        let n10 = self.get_normal_at(x1, z0);
-        let n01 = self.get_normal_at(x0, z1);
-        let n11 = self.get_normal_at(x1, z1);
-
-        // Bilinear interpolation
-        let n0 = n00 * (1.0 - fx) + n10 * fx;
-        let n1 = n01 * (1.0 - fx) + n11 * fx;
-        (n0 * (1.0 - fz) + n1 * fz).norm()
-    }
-
-    pub fn create_normal_arrow_mesh(
-        &self,
-        context: &mut RenderContext,
-        x: f32,
-        z: f32,
-        length: f32,
-    ) -> Result<GlMeshId> {
-        let pos = V3::new([x, self.height_at(x, z), z]);
-        let normal = self.normal_at(x, z);
-        let verts = gl_pipeline_colored::arrow(pos, pos + length * normal)?;
-        context.create_colored_mesh(&verts, &[], true)
-    }
-}
-
-// ----------------------------------------------------------------------------
-impl Default for Terrain {
-    fn default() -> Self {
-        Self::new(32, 32)
     }
 }
 
