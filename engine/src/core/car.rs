@@ -276,7 +276,7 @@ impl Car {
                 .get_joint(wheel_data.joint)
                 .ok_or(Error::InvalidJointId)?;
 
-            let (_, _, wheel_joint) = joint.as_wheel().ok_or(Error::InvalidJointType)?;
+            let wheel_joint = joint.as_wheel().ok_or(Error::InvalidJointType)?;
 
             let wheel_pos = body.position();
             //let forward = body.orientation().rotate(V3::X2);
@@ -336,9 +336,10 @@ impl Car {
             // Get col0 = lateral (right), col1 = suspension (up), col2 = forward
             let chassis_basis: M3x3 = chassis_orientation.as_mat3x3();
 
-            let wheel_joint = physics
+            let joint = physics
                 .get_joint_mut(wheel_data.joint)
                 .ok_or(Error::InvalidJointId)?;
+            let wheel_joint = joint.as_wheel_mut().ok_or(Error::InvalidJointType)?;
             wheel_joint.update_basis(chassis_basis);
 
             let tire_basis = if wheel_data.is_steering {
@@ -349,15 +350,13 @@ impl Car {
             };
 
             if wheel_data.is_driving {
-                let wheel_joint = physics
-                    .get_joint_mut(wheel_data.joint)
-                    .ok_or(Error::InvalidJointId)?;
                 wheel_joint.update_motor(-4.0, self.drive_torque);
             }
 
             let dir = -V3::X1;
             if let Some((point, normal, dist)) = raycast_ground(origin, dir, wheel_data.radius) {
                 let penetration = wheel_data.radius - dist;
+                let normal_force = wheel_joint.normal_force(ctx.dt_secs());
 
                 let tire_contact = TireContext {
                     wheel_radius: wheel_data.radius,
@@ -365,7 +364,7 @@ impl Car {
                     world_basis: tire_basis,
                     normal,
                     penetration,
-                    normal_force: 6000.0,
+                    normal_force,
                     friction: 0.8,
                 };
 

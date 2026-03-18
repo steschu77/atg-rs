@@ -90,6 +90,11 @@ impl WheelJoint {
     }
 
     // ------------------------------------------------------------------------
+    pub fn normal_force(&self, dt: f32) -> f32 {
+        (-self.accumulated_lambda[2]).max(0.0) / dt
+    }
+
+    // ------------------------------------------------------------------------
     pub fn pre_step(&mut self, body_a: &RigidBody, body_b: &RigidBody, dt: f32) {
         self.world_anchor_a = body_a.to_world(self.local_anchor_a);
         self.world_anchor_b = body_b.to_world(self.local_anchor_b);
