@@ -106,30 +106,6 @@ impl Joint {
     }
 
     // ------------------------------------------------------------------------
-    pub fn update_motor(&mut self, motor_speed: f32, max_motor_torque: f32) {
-        match self {
-            Self::Wheel { joint, .. } => {
-                joint.update_motor(motor_speed, max_motor_torque);
-            }
-            _ => {
-                // Only wheel joints have motors.
-            }
-        }
-    }
-
-    // ------------------------------------------------------------------------
-    pub fn update_basis(&mut self, basis: M3x3) {
-        match self {
-            Self::Wheel { joint, .. } => {
-                joint.update_basis(basis);
-            }
-            _ => {
-                // Only wheel joints have steering.
-            }
-        }
-    }
-
-    // ------------------------------------------------------------------------
     pub fn pre_step(&mut self, bodies: &mut ObjPool<RigidBody>, dt: f32) {
         match self {
             Self::Distance {
@@ -265,13 +241,17 @@ impl Joint {
     }
 
     // ------------------------------------------------------------------------
-    pub fn as_wheel(&self) -> Option<(BodyId, BodyId, &WheelJoint)> {
+    pub fn as_wheel(&self) -> Option<&WheelJoint> {
         match self {
-            Self::Wheel {
-                body_a,
-                body_b,
-                joint,
-            } => Some((*body_a, *body_b, joint)),
+            Self::Wheel { joint, .. } => Some(joint),
+            _ => None,
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    pub fn as_wheel_mut(&mut self) -> Option<&mut WheelJoint> {
+        match self {
+            Self::Wheel { joint, .. } => Some(joint),
             _ => None,
         }
     }
