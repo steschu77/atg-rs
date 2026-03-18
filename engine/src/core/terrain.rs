@@ -5,8 +5,10 @@ use crate::error::{Error, Result};
 use crate::v2d::v3::V3;
 use std::path::Path;
 
+// ----------------------------------------------------------------------------
 const TERRAIN_RESOLUTION: f32 = 0.5;
 const TERRAIN_RESOLUTION_INV: f32 = 1.0 / TERRAIN_RESOLUTION;
+const TERRAIN_CHUNK_SIZE: u32 = 32;
 
 // ----------------------------------------------------------------------------
 #[derive(Debug)]
@@ -66,7 +68,7 @@ impl Terrain {
         chunk_z: u32,
     ) -> Result<GlMeshId> {
         let resolution: f32 = TERRAIN_RESOLUTION;
-        let chunk_size: u32 = 16;
+        let chunk_size: u32 = TERRAIN_CHUNK_SIZE;
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
         let chunk_origin_x = chunk_x * chunk_size;
