@@ -11,6 +11,7 @@ use crate::x2d::{
     constraint::softness::Softness, constraint::tire_contact::TireContext, mass::Mass,
     physics::Physics, rigid_body::RigidBody,
 };
+use std::fmt;
 
 // ----------------------------------------------------------------------------
 #[derive(Debug, Clone, Default)]
@@ -65,6 +66,160 @@ impl WheelData {
 }
 
 // ----------------------------------------------------------------------------
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DriveDirection {
+    #[default]
+    Forward,
+    Reverse,
+}
+
+// ----------------------------------------------------------------------------
+impl fmt::Display for DriveDirection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DriveDirection::Forward => write!(f, "Forward"),
+            DriveDirection::Reverse => write!(f, "Reverse"),
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DriveState {
+    #[default]
+    Coast,
+    Drive,
+    DriveBraking,
+    Braking,
+    Stopped,
+}
+
+// ----------------------------------------------------------------------------
+impl fmt::Display for DriveState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DriveState::Coast => write!(f, "Coast"),
+            DriveState::Drive => write!(f, "Drive"),
+            DriveState::DriveBraking => write!(f, "DriveBraking"),
+            DriveState::Braking => write!(f, "Braking"),
+            DriveState::Stopped => write!(f, "Stopped"),
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+#[derive(Debug, Clone, Default)]
+pub struct DriveStateContext {
+    pub state: DriveState,
+    pub direction: DriveDirection,
+    pub state_time: f32,
+}
+
+const STOP_DELAY: f32 = 0.3;
+const V_BACKWARD: f32 = -0.5;
+const V_EPSILON: f32 = 0.1;
+
+// ----------------------------------------------------------------------------
+// `drive` and `resist` are abstract — caller maps throttle/brake to them
+fn update_drive_state(state: DriveState, drive: bool, brake: bool, near_stop: bool) -> DriveState {
+    debug_assert!(
+        !matches!(state, DriveState::Coast | DriveState::Stopped),
+        "Coast and Stopped are handled by update_direction_state"
+    );
+    match (drive, brake) {
+        (false, false) => DriveState::Coast,
+        (true, false) => DriveState::Drive,
+        (false, true) => match state {
+            DriveState::Drive => DriveState::Coast,
+            DriveState::DriveBraking if near_stop => DriveState::Stopped,
+            DriveState::DriveBraking => DriveState::Braking,
+            DriveState::Braking if near_stop => DriveState::Stopped,
+            DriveState::Braking => DriveState::Braking,
+            DriveState::Stopped => DriveState::Stopped,
+            DriveState::Coast => DriveState::Braking,
+        },
+        (true, true) => DriveState::DriveBraking,
+    }
+}
+
+// ----------------------------------------------------------------------------
+fn update_direction_state(
+    ctx: &DriveStateContext,
+    throttle: bool,
+    brake: bool,
+    v_long: f32,
+    dt: f32,
+) -> DriveStateContext {
+    let state_time = ctx.state_time + dt;
+    let near_stop = v_long.abs() < V_EPSILON;
+
+    match ctx.state {
+        DriveState::Coast => {
+            let going_forward = v_long >= V_BACKWARD;
+            let (direction, drive, resist) = if going_forward {
+                (DriveDirection::Forward, throttle, brake)
+            } else {
+                (DriveDirection::Reverse, brake, throttle)
+            };
+            let next = match (drive, resist) {
+                (false, false) => DriveState::Coast,
+                (true, false) => DriveState::Drive,
+                (false, true) => DriveState::Braking,
+                (true, true) => DriveState::DriveBraking,
+            };
+            DriveStateContext {
+                state: next,
+                direction,
+                state_time: 0.0,
+            }
+        }
+
+        DriveState::Stopped => {
+            let can_leave = state_time >= STOP_DELAY;
+            let next = match (throttle, brake, can_leave) {
+                (true, false, true) => {
+                    return DriveStateContext {
+                        state: DriveState::Drive,
+                        direction: DriveDirection::Forward,
+                        state_time: 0.0,
+                    };
+                }
+                (false, true, true) => {
+                    return DriveStateContext {
+                        state: DriveState::Drive,
+                        direction: DriveDirection::Reverse,
+                        state_time: 0.0,
+                    };
+                }
+                (false, false, _) => DriveState::Coast,
+                (true, true, _) => DriveState::Coast,
+                _ => DriveState::Stopped,
+            };
+            DriveStateContext {
+                state: next,
+                direction: ctx.direction,
+                state_time,
+            }
+        }
+
+        // Drive / DriveBraking / Braking delegate to update_drive_state
+        _ => {
+            let (drive, resist) = match ctx.direction {
+                DriveDirection::Forward => (throttle, brake),
+                DriveDirection::Reverse => (brake, throttle),
+            };
+            let next = update_drive_state(ctx.state, drive, resist, near_stop);
+            let changed = next != ctx.state;
+            DriveStateContext {
+                state: next,
+                direction: ctx.direction,
+                state_time: if changed { 0.0 } else { state_time },
+            }
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
 #[derive(Debug)]
 pub struct Car {
     pub chassis: BodyId,
@@ -73,10 +228,9 @@ pub struct Car {
     pub debug_arrows: [RenderObject; 4],
     pub geometry: Geometry,
     pub steering_angle: f32,
-    pub drive_torque: f32,
-    pub brake_torque: f32,
     pub chassis_position: V3,
     pub chassis_orientation: Q,
+    pub drive_state: DriveStateContext,
 }
 
 // ----------------------------------------------------------------------------
@@ -99,6 +253,7 @@ fn raycast_ground(origin: V3, dir: V3, max_dist: f32) -> Option<(V3, V3, f32)> {
 
 // ----------------------------------------------------------------------------
 impl Car {
+    // ------------------------------------------------------------------------
     pub fn new(context: &mut RenderContext, physics: &mut Physics, geo: Geometry) -> Result<Self> {
         let mut debug_arrows = Vec::new();
         for _ in 0..4 {
@@ -250,18 +405,19 @@ impl Car {
             debug_arrows: debug_arrows.try_into().unwrap(),
             wheels,
             geometry: geo,
-            drive_torque: 0.0,
-            brake_torque: 0.0,
             steering_angle: 0.0,
             chassis_position: V3::ZERO,
             chassis_orientation: Q::identity(),
+            drive_state: DriveStateContext::default(),
         })
     }
 
+    // ------------------------------------------------------------------------
     pub fn position(&self) -> V4 {
         V4::from_v3(self.chassis_position, 1.0)
     }
 
+    // ------------------------------------------------------------------------
     pub fn update_debug_arrows(
         &mut self,
         context: &mut RenderContext,
@@ -291,31 +447,29 @@ impl Car {
         Ok(())
     }
 
+    // ------------------------------------------------------------------------
     pub fn transform(&self, physics: &Physics) -> Result<(V4, V4)> {
         let chassis_body = physics.get_body(self.chassis).ok_or(Error::InvalidBodyId)?;
         let forward = chassis_body.orientation().rotate(V3::X2);
         let position = chassis_body.position();
         Ok((V4::from_v3(forward, 0.0), V4::from_v3(position, 1.0)))
     }
-}
 
-// ----------------------------------------------------------------------------
-impl Car {
+    // ------------------------------------------------------------------------
+    pub fn drive_state(&self) -> String {
+        format!("{}/{}", self.drive_state.state, self.drive_state.direction)
+    }
+
+    // ------------------------------------------------------------------------
     pub fn update(&mut self, ctx: &Context, physics: &mut Physics) -> Result<()> {
         const TURN_SPEED: f32 = 1.5;
+        const DRIVE_TORQUE: f32 = 4000.0;
+        const BRAKE_TORQUE: f32 = 2000.0;
+        const ENGINE_BRAKE_TORQUE: f32 = 100.0;
         let dt = ctx.dt_secs();
 
-        self.drive_torque = if ctx.state.is_pressed(GameKey::Accelerate) {
-            4000.0 // Nm
-        } else {
-            0.0
-        };
-
-        self.brake_torque = if ctx.state.is_pressed(GameKey::Brake) {
-            2000.0 // Nm
-        } else {
-            0.0
-        };
+        let throttle = ctx.state.is_pressed(GameKey::Accelerate);
+        let brake = ctx.state.is_pressed(GameKey::Brake);
 
         if ctx.state.is_pressed(GameKey::SteerLeft) {
             self.steering_angle -= TURN_SPEED * dt;
@@ -326,6 +480,25 @@ impl Car {
 
         let chassis_body = physics.get_body(self.chassis).ok_or(Error::InvalidBodyId)?;
         let chassis_orientation = chassis_body.orientation();
+
+        let forward = chassis_orientation.rotate(V3::X2);
+        let v_long = chassis_body.linear_velocity().dot(forward);
+
+        self.drive_state = update_direction_state(&self.drive_state, throttle, brake, v_long, dt);
+
+        let max_speed = 20.0;
+        let (free_speed, free_torque, drive_speed, drive_torque) = match self.drive_state.state {
+            DriveState::Coast => (0.0, 0.0, 0.0, ENGINE_BRAKE_TORQUE),
+            DriveState::Drive => match self.drive_state.direction {
+                DriveDirection::Forward => (0.0, 0.0, -max_speed, DRIVE_TORQUE),
+                DriveDirection::Reverse => (0.0, 0.0, max_speed, DRIVE_TORQUE),
+            },
+            DriveState::DriveBraking => match self.drive_state.direction {
+                DriveDirection::Forward => (0.0, BRAKE_TORQUE, -max_speed, DRIVE_TORQUE),
+                DriveDirection::Reverse => (0.0, BRAKE_TORQUE, max_speed, DRIVE_TORQUE),
+            },
+            DriveState::Braking | DriveState::Stopped => (0.0, BRAKE_TORQUE, 0.0, BRAKE_TORQUE),
+        };
 
         for wheel_data in &mut self.wheels {
             let wheel_body = physics
@@ -349,14 +522,10 @@ impl Car {
                 chassis_basis
             };
 
-            if self.brake_torque > 0.0 {
-                // Braking = try "stop spinning"
-                wheel_joint.update_motor(0.0, self.brake_torque);
-            } else if wheel_data.is_driving && self.drive_torque > 0.0 {
-                wheel_joint.update_motor(-16.0, self.drive_torque);
+            if wheel_data.is_driving {
+                wheel_joint.update_motor(drive_speed, drive_torque);
             } else {
-                // Coast: no motor torque, wheel spins freely
-                wheel_joint.update_motor(0.0, 0.0);
+                wheel_joint.update_motor(free_speed, free_torque);
             }
 
             let dir = -V3::X1;
@@ -393,10 +562,8 @@ impl Car {
 
         Ok(())
     }
-}
 
-// ----------------------------------------------------------------------------
-impl Car {
+    // ------------------------------------------------------------------------
     pub fn apply_gravity(&mut self, physics: &mut Physics) -> Result<()> {
         let chassis_body = physics
             .get_body_mut(self.chassis)
@@ -415,6 +582,7 @@ impl Car {
         Ok(())
     }
 
+    // ------------------------------------------------------------------------
     pub fn update_render_objects(&mut self, physics: &Physics) -> Result<()> {
         let chassis_body = physics.get_body(self.chassis).ok_or(Error::InvalidBodyId)?;
 
