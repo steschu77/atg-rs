@@ -215,6 +215,12 @@ impl World {
         let (forward, position) = self.car.transform(&self.physics)?;
         //let (forward, position) = (V4::X2, V4::X3);
 
+        {
+            let mesh = create_text_mesh(&self._font, &self.car.drive_state())?;
+            self.render_context
+                .update_msdftex_mesh(self.debug.mesh_id, &mesh)?;
+            self.debug.transform.position = position + V4::new([0.0, 0.5, 0.0, 0.0]);
+        }
         self.camera.look_at(position, forward);
         Ok(())
     }
