@@ -105,11 +105,9 @@ impl Physics {
         self.warm_start();
 
         let solver_iterations = 10;
-        //let dt_solver = dt / solver_iterations as f32;
-        let dt_solver = dt;
         for _ in 0..solver_iterations {
-            self.solve_contacts(dt_solver);
-            self.solve_constraints(dt_solver);
+            self.solve_contacts(dt);
+            self.solve_constraints(dt);
         }
 
         self.integrate_velocities(dt);

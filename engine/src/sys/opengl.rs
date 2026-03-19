@@ -289,6 +289,8 @@ pub type FnUniformMatrix2fv = unsafe extern "system" fn(GLint, GLsizei, GLboolea
 pub type FnUniformMatrix3fv = unsafe extern "system" fn(GLint, GLsizei, GLboolean, *const GLfloat);
 pub type FnUniformMatrix4fv = unsafe extern "system" fn(GLint, GLsizei, GLboolean, *const GLfloat);
 
+pub type FnSwapIntervalEXT = unsafe extern "system" fn(i32) -> i32;
+
 #[derive(Debug)]
 pub struct OpenGlFunctions {
     fnGetError: FnGetError,
@@ -389,6 +391,8 @@ pub struct OpenGlFunctions {
     fnUniformMatrix2fv: FnUniformMatrix2fv,
     fnUniformMatrix3fv: FnUniformMatrix3fv,
     fnUniformMatrix4fv: FnUniformMatrix4fv,
+
+    fnSwapIntervalEXT: FnSwapIntervalEXT,
 }
 
 pub type FnOpenGL = *const ();
@@ -525,6 +529,8 @@ impl OpenGlFunctions {
             fnUniformMatrix2fv: load_gl_fn!(load_fn, "glUniformMatrix2fv\0" => FnUniformMatrix2fv)?,
             fnUniformMatrix3fv: load_gl_fn!(load_fn, "glUniformMatrix3fv\0" => FnUniformMatrix3fv)?,
             fnUniformMatrix4fv: load_gl_fn!(load_fn, "glUniformMatrix4fv\0" => FnUniformMatrix4fv)?,
+
+            fnSwapIntervalEXT: load_gl_fn!(load_fn, "wglSwapIntervalEXT\0" => FnSwapIntervalEXT)?,
         })
     }
 
@@ -627,4 +633,6 @@ impl OpenGlFunctions {
     impl_gl_fn!(fnUniformMatrix2fv, UniformMatrix2fv(location: GLint, count: GLsizei, transpose: GLboolean, value: *const GLfloat));
     impl_gl_fn!(fnUniformMatrix3fv, UniformMatrix3fv(location: GLint, count: GLsizei, transpose: GLboolean, value: *const GLfloat));
     impl_gl_fn!(fnUniformMatrix4fv, UniformMatrix4fv(location: GLint, count: GLsizei, transpose: GLboolean, value: *const GLfloat));
+
+    impl_gl_fn!(fnSwapIntervalEXT, SwapIntervalEXT(interval: i32) -> i32);
 }
