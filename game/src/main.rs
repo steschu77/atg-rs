@@ -75,6 +75,8 @@ mod win32 {
             let game_loop = GameLoop::new(t_update);
             let gl = win32.load()?;
 
+            let _ = unsafe { gl.SwapIntervalEXT(0) }; // Disable vsync
+
             log::info!("Game is ready.");
             Ok(Self {
                 clock: Clock::new(),
