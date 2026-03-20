@@ -29,8 +29,8 @@ impl Renderer {
     pub fn new(gl: Rc<gl::OpenGlFunctions>) -> Result<Self> {
         print_opengl_info(&gl);
 
-        let fbo_width = 800;
-        let fbo_height = 600;
+        let fbo_width = 1280;
+        let fbo_height = 720;
 
         let texture_vao = create_texture_vao(&gl);
         let texture_program = create_program(&gl, "texture", VS_TEXTURE, FS_TEXTURE).unwrap();
