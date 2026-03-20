@@ -540,7 +540,7 @@ impl Car {
                     normal,
                     penetration,
                     normal_force,
-                    friction: 0.8,
+                    friction: 2.8,
                 };
 
                 if let Some(contact_id) = wheel_data.contact {
