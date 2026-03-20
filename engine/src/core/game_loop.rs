@@ -4,6 +4,7 @@ use crate::error::Result;
 pub struct GameLoop {
     dt_update: std::time::Duration,
     t_lag: std::time::Duration,
+    t_prev: std::time::Duration,
 }
 
 impl GameLoop {
@@ -11,6 +12,7 @@ impl GameLoop {
         Self {
             dt_update,
             t_lag: std::time::Duration::ZERO,
+            t_prev: std::time::Duration::ZERO,
         }
     }
     // ----------------------------------------------------------------------------
@@ -22,28 +24,43 @@ impl GameLoop {
         state: &input::State,
     ) -> Result<()> {
         // game loop: https://gameprogrammingpatterns.com/game-loop.html
-        let t_frame = clock.now();
+        let t_current = clock.now();
+        let t_frame_total = t_current - self.t_prev;
+        self.t_lag += t_frame_total;
+        self.t_prev = t_current;
 
         game.input(events.clone(), state.clone())?;
 
-        // Slow machines: Clamp number of updates to avoid spiral of death
-        // (otherwise the next loop will be late again)
-        let updates_needed = (self.t_lag.as_nanos() / self.dt_update.as_nanos()) as u32 + 1;
-        for _ in 0..updates_needed.min(4) {
+        let updates_needed = (self.t_lag.as_nanos() / self.dt_update.as_nanos()) as u32;
+        let updates_needed = updates_needed.max(1);
+
+        // On slow machines we deliberately drop updates rather than spiral to death.
+        // We accept simulation slowdown over instability.
+        const MAX_UPDATES_PER_FRAME: u32 = 4;
+        let updates_to_run = updates_needed.min(MAX_UPDATES_PER_FRAME);
+        let updates_dropped = updates_needed - updates_to_run;
+
+        for _ in 0..updates_to_run {
             game.update(&self.dt_update)?;
         }
 
         game.render()?;
 
-        let t_lag = self.t_lag + clock.t_since(t_frame);
-        if t_lag < self.dt_update {
-            // Fast machines: sleep to maintain a consistent update rate
-            clock.sleep(self.dt_update - t_lag);
+        // Pretend that all updates have been processed. We are intentionally
+        // forgetting the debt rather than carrying it forward.
+        self.t_lag = self.t_lag.saturating_sub(self.dt_update * updates_needed);
+
+        if updates_dropped > 0 {
+            log::warn!("dropped {updates_dropped} update(s), lag={:?}", self.t_lag);
         }
 
-        // Pretend that all updates have been processed
-        let t_lag = self.t_lag + clock.t_since(t_frame);
-        self.t_lag = t_lag.saturating_sub(self.dt_update * updates_needed);
+        // Sleep for the remainder of the frame budget.
+        let t_work = clock.t_since(t_current);
+        let t_sleep = self.dt_update.saturating_sub(self.t_lag + t_work);
+        if !t_sleep.is_zero() {
+            clock.sleep(t_sleep);
+        }
+
         Ok(())
     }
 }
