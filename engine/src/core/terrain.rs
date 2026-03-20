@@ -28,8 +28,8 @@ impl Terrain {
         let height = chunks_cz * TERRAIN_CHUNK_SIZE;
 
         let mut heightmap: Vec<f32> = vec![0.0; width * height];
-        //generate_hills(&mut heightmap, width, height);
-        generate_flat(&mut heightmap, width, height);
+        generate_hills(&mut heightmap, width, height);
+        //generate_flat(&mut heightmap, width, height);
 
         Terrain {
             chunks_cx,

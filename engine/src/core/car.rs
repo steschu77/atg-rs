@@ -4,6 +4,7 @@ use crate::core::gl_pipeline_colored::arrow;
 use crate::core::gl_renderer::{
     DefaultMaterials, DefaultMeshes, RenderContext, RenderObject, Transform,
 };
+use crate::core::terrain::Terrain;
 use crate::error::{Error, Result};
 use crate::v2d::{m3x3::M3x3, q::Q, v3::V3, v4::V4};
 use crate::x2d::{
@@ -234,21 +235,21 @@ pub struct Car {
 }
 
 // ----------------------------------------------------------------------------
-// Simple raycast for ground plane at y=0. Sophisticated terrain raycasting comes later.
-fn raycast_ground(origin: V3, dir: V3, max_dist: f32) -> Option<(V3, V3, f32)> {
-    if dir.x1() >= 0.0 {
+fn raycast_ground(terrain: &Terrain, origin: V3, max_dist: f32) -> Option<(V3, V3, f32)> {
+    let terrain_y = terrain.height_at(origin.x0(), origin.x2());
+    let t = origin.x1() - terrain_y;
+
+    // Only discard if the wheel is too far above the ground to make contact.
+    // Negative t (wheel center below surface) is kept — it means deep penetration
+    // and the solver needs the contact to push the wheel back out.
+    if t > max_dist {
         return None;
     }
 
-    let t = -origin.x1() / dir.x1();
+    let point = V3::new([origin.x0(), terrain_y, origin.x2()]);
+    let normal = terrain.normal_at(origin.x0(), origin.x2());
 
-    if t < 0.0 || t > max_dist {
-        return None;
-    }
-
-    let point = origin + dir * t;
-
-    Some((point, V3::X1, t))
+    Some((point, normal, t))
 }
 
 // ----------------------------------------------------------------------------
@@ -528,8 +529,9 @@ impl Car {
                 wheel_joint.update_motor(free_speed, free_torque);
             }
 
-            let dir = -V3::X1;
-            if let Some((point, normal, dist)) = raycast_ground(origin, dir, wheel_data.radius) {
+            if let Some((point, normal, dist)) =
+                raycast_ground(ctx.terrain, origin, wheel_data.radius)
+            {
                 let penetration = wheel_data.radius - dist;
                 let normal_force = wheel_joint.normal_force(ctx.dt_secs());
 
