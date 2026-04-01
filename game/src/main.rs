@@ -322,11 +322,13 @@ mod linux {
     use std::ptr::NonNull;
     use x11::xlib::{
         XCloseDisplay, XCreateSimpleWindow, XDefaultScreen, XDestroyWindow, XEvent, XLookupKeysym,
-        XMapWindow, XNextEvent, XOpenDisplay, XPending, XRaiseWindow, XRootWindow, XSelectInput,
+        XMapWindow, XNextEvent, XOpenDisplay, XPending, XQueryKeymap, XRaiseWindow, XRootWindow,
+        XSelectInput, XkbKeycodeToKeysym,
     };
     //use x11::xlib::{XDisplayHeight, XDisplayWidth};
     use std::collections::HashMap;
 
+    // ------------------------------------------------------------------------
     pub fn main() -> Result<()> {
         let _ = logger::init_logger(log::LevelFilter::Info);
 
@@ -344,7 +346,7 @@ mod linux {
             XSelectInput(
                 display.as_ptr(),
                 win,
-                x11::xlib::ExposureMask | x11::xlib::KeyPressMask,
+                x11::xlib::ExposureMask | x11::xlib::KeyPressMask | x11::xlib::KeyReleaseMask,
             );
             XMapWindow(display.as_ptr(), win);
             XRaiseWindow(display.as_ptr(), win);
@@ -361,18 +363,26 @@ mod linux {
 
         game.resize(cx as i32, cy as i32);
 
-        let key_map = key_map();
+        let keysym_map = keysym_map();
+        let _keycode_map = keycode_map(display.as_ptr(), &keysym_map);
         loop {
             while unsafe { XPending(display.as_ptr()) } > 0 {
                 let mut event: XEvent = unsafe { std::mem::zeroed() };
                 unsafe { XNextEvent(display.as_ptr(), &mut event) };
 
-                match unsafe { event.type_ } {
+                let event_type = unsafe { event.type_ };
+                match event_type {
                     x11::xlib::Expose => {}
-                    x11::xlib::KeyPress => {
+                    x11::xlib::KeyPress | x11::xlib::KeyRelease => {
                         let keysym = unsafe { XLookupKeysym(&mut event.key as *mut _, 0) } as u32;
-                        if let Some(key) = key_map.get(&keysym).copied() {
-                            input.add_event(input::Event::KeyDown { key });
+                        if let Some(key) = keysym_map.get(&keysym).copied() {
+                            let (event, state) = if event_type == x11::xlib::KeyPress {
+                                (input::Event::KeyDown { key }, 0x80)
+                            } else {
+                                (input::Event::KeyUp { key }, 0x00)
+                            };
+                            input.add_event(event);
+                            input.set_state(key, state);
                         }
                     }
                     _ => {}
@@ -395,8 +405,9 @@ mod linux {
         }
     }
 
+    // ------------------------------------------------------------------------
     #[allow(non_upper_case_globals)]
-    fn key_map() -> HashMap<u32, Key> {
+    fn keysym_map() -> HashMap<u32, Key> {
         use x11::keysym::*;
         HashMap::from([
             (XK_Escape, Key::k_Escape),
@@ -470,6 +481,77 @@ mod linux {
             (XK_X, Key::k_X),
             (XK_Y, Key::k_Y),
             (XK_Z, Key::k_Z),
+            (XK_a, Key::k_A),
+            (XK_b, Key::k_B),
+            (XK_c, Key::k_C),
+            (XK_d, Key::k_D),
+            (XK_e, Key::k_E),
+            (XK_f, Key::k_F),
+            (XK_g, Key::k_G),
+            (XK_h, Key::k_H),
+            (XK_i, Key::k_I),
+            (XK_j, Key::k_J),
+            (XK_k, Key::k_K),
+            (XK_l, Key::k_L),
+            (XK_m, Key::k_M),
+            (XK_n, Key::k_N),
+            (XK_o, Key::k_O),
+            (XK_p, Key::k_P),
+            (XK_q, Key::k_Q),
+            (XK_r, Key::k_R),
+            (XK_s, Key::k_S),
+            (XK_t, Key::k_T),
+            (XK_u, Key::k_U),
+            (XK_v, Key::k_V),
+            (XK_w, Key::k_W),
+            (XK_x, Key::k_X),
+            (XK_y, Key::k_Y),
+            (XK_z, Key::k_Z),
         ])
+    }
+
+    // ------------------------------------------------------------------------
+    fn keycode_map(
+        display: *mut x11::xlib::Display,
+        key_map: &HashMap<u32, Key>,
+    ) -> [Option<Key>; 256] {
+        let mut map = [None; 256];
+
+        for keycode in 0..256 {
+            let keysym = unsafe { XkbKeycodeToKeysym(display, keycode as u8, 0, 0) } as u32;
+
+            if let Some(&key) = key_map.get(&keysym) {
+                map[keycode as usize] = Some(key);
+            }
+        }
+
+        map
+    }
+
+    // ------------------------------------------------------------------------
+    fn _update_key_state(
+        display: *mut x11::xlib::Display,
+        keycode_map: &[Option<Key>; 256],
+        input: &mut input::Input,
+    ) {
+        input.reset_state();
+
+        let mut keys = [0; 32];
+        unsafe { XQueryKeymap(display, keys.as_mut_ptr()) };
+
+        // 3) Process in usize-sized chunks
+        const USIZE_BYTES: usize = std::mem::size_of::<usize>();
+        const CHUNKS: usize = 32 / USIZE_BYTES;
+
+        for keycode in 0..256 {
+            if let Some(key) = keycode_map[keycode] {
+                let byte = keys[keycode / 8];
+                let mask = 1 << (keycode % 8);
+
+                let pressed = (byte & mask) != 0;
+                println!("pressed: {key:?}");
+                input.set_state(key, pressed as u8);
+            }
+        }
     }
 }

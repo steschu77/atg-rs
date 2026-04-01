@@ -81,6 +81,10 @@ impl Input {
         std::mem::take(&mut self.events)
     }
 
+    pub fn reset_state(&mut self) {
+        self.state.keys.fill(0);
+    }
+
     pub fn set_state(&mut self, key: Key, state: u8) {
         let key = key as usize;
         if let Some(s) = self.state.keys.get_mut(key) {
